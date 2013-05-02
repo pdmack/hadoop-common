@@ -81,6 +81,7 @@ import org.eclipse.jetty.util.MultiException;
 
 import com.sun.jersey.spi.container.servlet.ServletContainer;
 
+
 /**
  * Create a Jetty embedded server to answer http requests. The primary goal
  * is to serve up status information for the server.
@@ -527,7 +528,9 @@ public class HttpServer implements FilterContainer {
     FilterHolder holder = new FilterHolder();
     holder.setName(name);
     holder.setClassName(classname);
-    holder.setInitParameters(parameters);
+    if (null != parameters) {
+        holder.setInitParameters(parameters);
+    }
     FilterMapping fmap = new FilterMapping();
     fmap.setPathSpecs(urls);
     fmap.setDispatches(FilterMapping.ALL);
