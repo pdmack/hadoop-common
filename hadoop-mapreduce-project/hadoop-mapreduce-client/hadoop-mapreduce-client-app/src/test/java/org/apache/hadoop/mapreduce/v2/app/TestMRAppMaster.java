@@ -116,8 +116,10 @@ public class TestMRAppMaster {
     JobConf conf = new JobConf();
     conf.set(MRJobConfig.MR_AM_STAGING_DIR, stagingDir);
     MRAppMaster.initAndStartAppMaster(appMaster, conf, userName);
-    assertEquals(stagingDir + Path.SEPARATOR + userName + Path.SEPARATOR
-        + ".staging", appMaster.stagingDirPath.toString());
+    Path userPath = new Path(stagingDir, userName);
+    Path userStagingPath = new Path(userPath, ".staging");
+    assertEquals(userStagingPath.toString(),
+      appMaster.stagingDirPath.toString());
   }
   
   @Test
@@ -359,9 +361,9 @@ public class TestMRAppMaster {
 
     ApplicationId appId = BuilderUtils.newApplicationId(12345, 56);
     ApplicationAttemptId applicationAttemptId =
-        BuilderUtils.newApplicationAttemptId(appId, 1);
+        ApplicationAttemptId.newInstance(appId, 1);
     ContainerId containerId =
-        BuilderUtils.newContainerId(applicationAttemptId, 546);
+        ContainerId.newInstance(applicationAttemptId, 546);
     String userName = UserGroupInformation.getCurrentUser().getShortUserName();
 
     // Create staging dir, so MRAppMaster doesn't barf.
