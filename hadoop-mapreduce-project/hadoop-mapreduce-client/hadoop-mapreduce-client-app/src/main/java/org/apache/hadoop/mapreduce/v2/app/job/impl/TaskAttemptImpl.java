@@ -132,7 +132,6 @@ import org.apache.hadoop.yarn.state.SingleArcTransition;
 import org.apache.hadoop.yarn.state.StateMachine;
 import org.apache.hadoop.yarn.state.StateMachineFactory;
 import org.apache.hadoop.yarn.util.Apps;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.RackResolver;
 
@@ -598,8 +597,8 @@ public abstract class TaskAttemptImpl implements
     long resourceSize = fstat.getLen();
     long resourceModificationTime = fstat.getModificationTime();
 
-    return BuilderUtils.newLocalResource(resourceURL, type, visibility,
-        resourceSize, resourceModificationTime);
+    return LocalResource.newInstance(resourceURL, type, visibility,
+      resourceSize, resourceModificationTime);
   }
 
   /**
@@ -762,11 +761,9 @@ public abstract class TaskAttemptImpl implements
     // Construct the actual Container
     // The null fields are per-container and will be constructed for each
     // container separately.
-    ContainerLaunchContext container = BuilderUtils
-        .newContainerLaunchContext(conf
-            .get(MRJobConfig.USER_NAME), localResources,
-            environment, null, serviceData, taskCredentialsBuffer,
-            applicationACLs);
+    ContainerLaunchContext container =
+        ContainerLaunchContext.newInstance(localResources, environment, null,
+          serviceData, taskCredentialsBuffer, applicationACLs);
 
     return container;
   }
@@ -807,8 +804,7 @@ public abstract class TaskAttemptImpl implements
     }
 
     // Construct the actual Container
-    ContainerLaunchContext container = BuilderUtils.newContainerLaunchContext(
-        commonContainerSpec.getUser(),
+    ContainerLaunchContext container = ContainerLaunchContext.newInstance(
         commonContainerSpec.getLocalResources(), myEnv, commands,
         myServiceData, commonContainerSpec.getTokens().duplicate(),
         applicationACLs);
@@ -1094,12 +1090,11 @@ public abstract class TaskAttemptImpl implements
         + taInfo.getPort());
     String nodeHttpAddress = StringInterner.weakIntern(taInfo.getHostname() + ":"
         + taInfo.getHttpPort());
-    // Resource/Priority/Tokens and RMIdentifier are only needed while
-    // launching the container on an NM, these are already completed tasks, so
-    // setting them to null and RMIdentifier as 0
+    // Resource/Priority/Tokens are only needed while launching the container on
+    // an NM, these are already completed tasks, so setting them to null
     container =
-        BuilderUtils.newContainer(containerId, containerNodeId,
-          nodeHttpAddress, null, null, null, 0);
+        Container.newInstance(containerId, containerNodeId,
+          nodeHttpAddress, null, null, null);
     computeRackAndLocality();
     launchTime = taInfo.getStartTime();
     finishTime = (taInfo.getFinishTime() != -1) ?
