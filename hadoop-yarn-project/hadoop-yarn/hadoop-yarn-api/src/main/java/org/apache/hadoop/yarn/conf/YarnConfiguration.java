@@ -253,6 +253,12 @@ public class YarnConfiguration extends Configuration {
   /** Default application name */
   public static final String DEFAULT_APPLICATION_NAME = "N/A";
 
+  /** Default application type */
+  public static final String DEFAULT_APPLICATION_TYPE = "YARN";
+
+  /** Default application type length */
+  public static final int APPLICATION_TYPE_LENGTH = 20;
+  
   /** Default queue name */
   public static final String DEFAULT_QUEUE_NAME = "default";
 
@@ -701,6 +707,14 @@ public class YarnConfiguration extends Configuration {
       YARN_PREFIX + "client.app-submission.poll-interval";
   public static final long DEFAULT_YARN_CLIENT_APP_SUBMISSION_POLL_INTERVAL_MS =
       1000;
+
+  /**
+   * Max number of threads in NMClientAsync to process container management
+   * events
+   */
+  public static final String NM_CLIENT_ASYNC_THREAD_POOL_MAX_SIZE =
+      YARN_PREFIX + "client.nodemanager-client-async.thread-pool-max-size";
+  public static final int DEFAULT_NM_CLIENT_ASYNC_THREAD_POOL_MAX_SIZE = 500;
 
   public YarnConfiguration() {
     super();
