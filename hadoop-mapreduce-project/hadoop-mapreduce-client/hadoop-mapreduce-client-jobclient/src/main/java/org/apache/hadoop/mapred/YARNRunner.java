@@ -84,7 +84,6 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.security.client.RMTokenSelector;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.ProtoUtils;
 
@@ -475,10 +474,10 @@ public class YARNRunner implements ClientProtocol {
         MRJobConfig.DEFAULT_JOB_ACL_MODIFY_JOB));
 
     // Setup ContainerLaunchContext for AM container
-    ContainerLaunchContext amContainer = BuilderUtils
-        .newContainerLaunchContext(UserGroupInformation
-            .getCurrentUser().getShortUserName(), localResources,
-            environment, vargsFinal, null, securityTokens, acls);
+    ContainerLaunchContext amContainer =
+        ContainerLaunchContext.newInstance(localResources, environment,
+          vargsFinal, null, securityTokens, acls);
+
 
     // Set up the ApplicationSubmissionContext
     ApplicationSubmissionContext appContext =
@@ -497,6 +496,7 @@ public class YARNRunner implements ClientProtocol {
         conf.getInt(MRJobConfig.MR_AM_MAX_ATTEMPTS,
             MRJobConfig.DEFAULT_MR_AM_MAX_ATTEMPTS));
     appContext.setResource(capability);
+    appContext.setApplicationType(MRJobConfig.MR_APPLICATION_TYPE);
     return appContext;
   }
 

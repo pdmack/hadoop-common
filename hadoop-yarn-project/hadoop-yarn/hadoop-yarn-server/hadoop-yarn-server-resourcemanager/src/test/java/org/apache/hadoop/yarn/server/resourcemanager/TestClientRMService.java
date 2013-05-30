@@ -65,6 +65,7 @@ import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.security.client.RMDelegationTokenIdentifier;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.NullRMStateStore;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStore;
 import org.apache.hadoop.yarn.server.resourcemanager.resource.Resources;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
@@ -90,7 +91,9 @@ public class TestClientRMService {
   
   @BeforeClass
   public static void setupSecretManager() throws IOException {
-    dtsm = new RMDelegationTokenSecretManager(60000, 60000, 60000, 60000);
+    RMContext rmContext = mock(RMContext.class);
+    when(rmContext.getStateStore()).thenReturn(new NullRMStateStore());
+    dtsm = new RMDelegationTokenSecretManager(60000, 60000, 60000, 60000, rmContext);
     dtsm.startThreads();  
   }
 
@@ -381,8 +384,6 @@ public class TestClientRMService {
 
   private SubmitApplicationRequest mockSubmitAppRequest(ApplicationId appId,
       String name, String queue) {
-    String user = MockApps.newUserName();
-
     ContainerLaunchContext amContainerSpec = mock(ContainerLaunchContext.class);
 
     Resource resource = Resources.createResource(
@@ -391,7 +392,6 @@ public class TestClientRMService {
     ApplicationSubmissionContext submissionContext =
         recordFactory.newRecordInstance(ApplicationSubmissionContext.class);
     submissionContext.setAMContainerSpec(amContainerSpec);
-    submissionContext.getAMContainerSpec().setUser(user);
     submissionContext.setApplicationName(name);
     submissionContext.setQueue(queue);
     submissionContext.setApplicationId(appId);
@@ -449,7 +449,7 @@ public class TestClientRMService {
     when(asContext.getMaxAppAttempts()).thenReturn(1);
     return new RMAppImpl(applicationId3, rmContext, config, null, null,
         queueName, asContext, yarnScheduler, null , System
-            .currentTimeMillis());
+            .currentTimeMillis(), "YARN");
   }
 
   private static YarnScheduler mockYarnScheduler() {

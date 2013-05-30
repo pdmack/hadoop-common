@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.nodemanager.containermanager.logaggregation;
 
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -47,15 +48,13 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.io.DataInputBuffer;
-import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.YarnException;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
+import org.apache.hadoop.yarn.api.records.ApplicationAccessType;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.api.records.ApplicationAccessType;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
@@ -63,6 +62,7 @@ import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.DrainDispatcher;
@@ -72,9 +72,9 @@ import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.logaggregation.AggregatedLogFormat;
-import org.apache.hadoop.yarn.logaggregation.ContainerLogsRetentionPolicy;
 import org.apache.hadoop.yarn.logaggregation.AggregatedLogFormat.LogKey;
 import org.apache.hadoop.yarn.logaggregation.AggregatedLogFormat.LogReader;
+import org.apache.hadoop.yarn.logaggregation.ContainerLogsRetentionPolicy;
 import org.apache.hadoop.yarn.server.nodemanager.CMgrCompletedAppsEvent;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
 import org.apache.hadoop.yarn.server.nodemanager.LocalDirsHandlerService;
@@ -124,6 +124,7 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
   @SuppressWarnings("unchecked")
   public void testLocalFileDeletionAfterUpload() throws Exception {
     this.delSrvc = new DeletionService(createContainerExecutor());
+    delSrvc = spy(delSrvc);
     this.delSrvc.init(conf);
     this.conf.set(YarnConfiguration.NM_LOG_DIRS, localLogDir.getAbsolutePath());
     this.conf.set(YarnConfiguration.NM_REMOTE_APP_LOG_DIR,
@@ -167,7 +168,8 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     // ensure filesystems were closed
     verify(logAggregationService).closeFileSystems(
         any(UserGroupInformation.class));
-    
+    verify(delSrvc).delete(eq(user), eq((Path) null),
+      eq(new Path(app1LogDir.getAbsolutePath())));
     delSrvc.stop();
     
     String containerIdStr = ConverterUtils.toString(container11);
@@ -463,6 +465,30 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     logAggregationService.stop();
   }
   
+  
+  @Test
+  public void testVerifyAndCreateRemoteDirNonExistence()
+      throws Exception {
+    this.conf.set(YarnConfiguration.NM_LOG_DIRS, localLogDir.getAbsolutePath());
+    File aNewFile = new File(String.valueOf("tmp"+System.currentTimeMillis()));
+    this.conf.set(YarnConfiguration.NM_REMOTE_APP_LOG_DIR, 
+        aNewFile.getAbsolutePath());
+    
+    DrainDispatcher dispatcher = createDispatcher();
+    LogAggregationService logAggregationService = spy(
+        new LogAggregationService(dispatcher, this.context, this.delSrvc,
+                                  super.dirsHandler));
+    logAggregationService.init(this.conf);
+    boolean existsBefore = aNewFile.exists();
+    assertTrue("The new file already exists!", !existsBefore);
+
+    logAggregationService.verifyAndCreateRemoteLogDir(this.conf);
+    
+    boolean existsAfter = aNewFile.exists();
+    assertTrue("The new aggregate file is not successfully created", existsAfter);
+    aNewFile.delete(); //housekeeping
+  }
+  
   @Test
   @SuppressWarnings("unchecked")
   public void testLogAggregationInitAppFailsWithoutKillingNM() throws Exception {
@@ -692,9 +718,6 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
     ContainerId cId = BuilderUtils.newContainerId(appAttemptId, 0);
 
     when(mockContainer.getId()).thenReturn(cId);
-    when(mockContainer.getRMIdentifer()).thenReturn(super.DUMMY_RM_IDENTIFIER);
-
-    containerLaunchContext.setUser(this.user);
 
     URL resource_alpha =
         ConverterUtils.getYarnUrlFromPath(localFS
@@ -711,13 +734,16 @@ public class TestLogAggregationService extends BaseContainerManagerTest {
         new HashMap<String, LocalResource>();
     localResources.put(destinationFile, rsrc_alpha);
     containerLaunchContext.setLocalResources(localResources);
-    containerLaunchContext.setUser(containerLaunchContext.getUser());
     List<String> commands = new ArrayList<String>();
     commands.add("/bin/bash");
     commands.add(scriptFile.getAbsolutePath());
     containerLaunchContext.setCommands(commands);
-    when(mockContainer.getResource()).thenReturn(
-        BuilderUtils.newResource(100 * 1024 * 1024, 1));
+    Resource r = BuilderUtils.newResource(100 * 1024 * 1024, 1);
+    when(mockContainer.getResource()).thenReturn(r);
+    when(mockContainer.getContainerToken()).thenReturn(
+      BuilderUtils.newContainerToken(cId, "127.0.0.1", 1234, user, r,
+        System.currentTimeMillis() + 10000L, 123, "password".getBytes(),
+        super.DUMMY_RM_IDENTIFIER));
     StartContainerRequest startRequest =
         recordFactory.newRecordInstance(StartContainerRequest.class);
     startRequest.setContainerLaunchContext(containerLaunchContext);
