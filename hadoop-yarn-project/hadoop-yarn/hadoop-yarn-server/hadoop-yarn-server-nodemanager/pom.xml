@@ -146,7 +146,9 @@
           </systemPropertyVariables>
           <excludes>
             <exclude>**/TestFSDownload.java</exclude>
+            <!--
             <exclude>**/TestNMWebServices*.java</exclude>
+            -->
           </excludes>
         </configuration>
       </plugin>

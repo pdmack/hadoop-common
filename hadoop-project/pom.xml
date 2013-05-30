@@ -870,40 +870,10 @@
             <exclude>${test.exclude.pattern}</exclude>
             <exclude>**/Test*$*.java</exclude>
             <!-- individual test failures to be investigated -->
-            <exclude>**/TestSSLHttpServer.java</exclude>
-            <exclude>**/TestUnmanagedAMLauncher.java</exclude>
-            <exclude>**/TestDoAsEffectiveUser.java</exclude>
-            <exclude>**/TestRPCCompatibility.java</exclude>
-            <exclude>**/TestWebHdfsFileSystemContract.java</exclude>
-            <exclude>**/TestDelegationTokenForProxyUser.java</exclude>
-            <exclude>**/TestEditLogRace.java</exclude>
-            <exclude>**/TestHftpURLTimeouts.java</exclude>
-            <exclude>**/TestNameNodeMetrics.java</exclude>
-            <exclude>**/TestCheckpoint.java</exclude>
-            <exclude>**/TestBookKeeperJournalManager.java</exclude>
-            <exclude>**/TestBookKeeperHACheckpoints.java</exclude>
-            <exclude>**/TestBookKeeperAsHASharedDir.java</exclude>
-            <exclude>**/TestBookKeeperJournalManager.java</exclude>
-            <!-- set in the hadoop-yarn-server-nodemanager pom
-            <exclude>**/TestNMWebServices*.java</exclude>
-            -->
-            <exclude>**/TestRMWebServices*.java</exclude>
-            <exclude>**/TestDelegationTokenRenewer.java</exclude>
-            <exclude>**/TestApplicationTokens.java</exclude>
-            <exclude>**/TestAppManager.java</exclude>
-            <exclude>**/TestYarnClient.java</exclude>
-            <exclude>**/TestAMWebServices*.java</exclude>
-            <exclude>**/TestHsWebServices*.java</exclude>
-            <exclude>**/TestMiniMRProxyUser.java</exclude>
-            <exclude>**/TestMRJobs.java</exclude>
-            <exclude>**/TestMapReduceLazyOutput.java</exclude>
-            <exclude>**/TestEncryptedShuffle.java</exclude>
-            <exclude>**/TestJobName.java</exclude>
-            <exclude>**/TestJobSysDirWithDFS.java</exclude>
-            <exclude>**/TestClusterMapReduceTestCase.java</exclude>
-            <exclude>**/TestLazyOutput.java</exclude>
-            <exclude>**/TestMiniMRWithDFSWithDistinctUsers.java</exclude>
-            <exclude>**/TestCopyCommitter.java</exclude>
+            <exclude>**/TestRMRestart.java</exclude>
+            <exclude>**/TestRMWebServicesApps.java</exclude>
+            <exclude>**/TestRMWebServicesNodes.java</exclude>
+            <exclude>**/TestFifoScheduler.java</exclude>
           </excludes>
         </configuration>
       </plugin>
