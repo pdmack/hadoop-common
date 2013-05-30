@@ -23,10 +23,12 @@ import static org.apache.hadoop.fs.CreateFlag.OVERWRITE;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.File;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -37,6 +39,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
@@ -50,6 +53,7 @@ import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.Dispatcher;
+import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.LocalDirsHandlerService;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.DelayedProcessKiller;
@@ -64,13 +68,15 @@ import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.Cont
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ResourceLocalizationService;
 import org.apache.hadoop.yarn.server.nodemanager.util.ProcessIdFileReader;
 import org.apache.hadoop.yarn.util.Apps;
+import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
 public class ContainerLaunch implements Callable<Integer> {
 
   private static final Log LOG = LogFactory.getLog(ContainerLaunch.class);
 
-  public static final String CONTAINER_SCRIPT = "launch_container.sh";
+  public static final String CONTAINER_SCRIPT =
+    Shell.appendScriptExtension("launch_container");
   public static final String FINAL_CONTAINER_TOKENS_FILE = "container_tokens";
 
   private static final String PID_FILE_NAME_FMT = "%s.pid";
@@ -116,11 +122,11 @@ public class ContainerLaunch implements Callable<Integer> {
         container.getLocalizedResources();
     ContainerId containerID = container.getContainer().getId();
     String containerIdStr = ConverterUtils.toString(containerID);
-    final String user = launchContext.getUser();
     final List<String> command = launchContext.getCommands();
     int ret = -1;
 
     try {
+      final String user = container.getUser();
       // /////////////////////////// Variable expansion
       // Before the container script gets written out.
       List<String> newCmds = new ArrayList<String>(command.size());
@@ -131,7 +137,7 @@ public class ContainerLaunch implements Callable<Integer> {
       for (String str : command) {
         // TODO: Should we instead work via symlinks without this grammar?
         newCmds.add(str.replace(ApplicationConstants.LOG_DIR_EXPANSION_VAR,
-            containerLogDir.toUri().getPath()));
+            containerLogDir.toString()));
       }
       launchContext.setCommands(newCmds);
 
@@ -142,7 +148,7 @@ public class ContainerLaunch implements Callable<Integer> {
         entry.setValue(
             value.replace(
                 ApplicationConstants.LOG_DIR_EXPANSION_VAR,
-                containerLogDir.toUri().getPath())
+                containerLogDir.toString())
             );
       }
       // /////////////////////////// End of variable expansion
@@ -208,7 +214,7 @@ public class ContainerLaunch implements Callable<Integer> {
                 FINAL_CONTAINER_TOKENS_FILE).toUri().getPath());
 
         // Sanitize the container's environment
-        sanitizeEnv(environment, containerWorkDir, appDirs);
+        sanitizeEnv(environment, containerWorkDir, appDirs, localResources);
         
         // Write out the environment
         writeLaunchEnv(containerScriptOutStream, environment, localResources,
@@ -330,7 +336,7 @@ public class ContainerLaunch implements Callable<Integer> {
 
       // kill process
       if (processId != null) {
-        String user = container.getLaunchContext().getUser();
+        String user = container.getUser();
         LOG.debug("Sending signal to pid " + processId
             + " as user " + user
             + " for container " + containerIdStr);
@@ -411,28 +417,17 @@ public class ContainerLaunch implements Callable<Integer> {
         + appIdStr;
   }
 
-  private static class ShellScriptBuilder {
-    
-    private final StringBuilder sb;
-  
-    public ShellScriptBuilder() {
-      this(new StringBuilder("#!/bin/bash\n\n"));
-    }
-  
-    protected ShellScriptBuilder(StringBuilder sb) {
-      this.sb = sb;
-    }
-  
-    public ShellScriptBuilder env(String key, String value) {
-      line("export ", key, "=\"", value, "\"");
-      return this;
-    }
-  
-    public ShellScriptBuilder symlink(Path src, String dst) throws IOException {
-      return symlink(src, new Path(dst));
-    }
-  
-    public ShellScriptBuilder symlink(Path src, Path dst) throws IOException {
+  private static abstract class ShellScriptBuilder {
+
+    private static final String LINE_SEPARATOR =
+        System.getProperty("line.separator");
+    private final StringBuilder sb = new StringBuilder();
+
+    public abstract void command(List<String> command);
+
+    public abstract void env(String key, String value);
+
+    public final void symlink(Path src, Path dst) throws IOException {
       if (!src.isAbsolute()) {
         throw new IOException("Source must be absolute");
       }
@@ -440,28 +435,97 @@ public class ContainerLaunch implements Callable<Integer> {
         throw new IOException("Destination must be relative");
       }
       if (dst.toUri().getPath().indexOf('/') != -1) {
-        line("mkdir -p ", dst.getParent().toString());
+        mkdir(dst.getParent());
       }
-      line("ln -sf \"", src.toUri().getPath(), "\" \"", dst.toString(), "\"");
-      return this;
+      link(src, dst);
     }
-  
-    public void write(PrintStream out) throws IOException {
-      out.append(sb);
-    }
-  
-    public void line(String... command) {
-      for (String s : command) {
-        sb.append(s);
-      }
-      sb.append("\n");
-    }
-  
+
     @Override
     public String toString() {
       return sb.toString();
     }
 
+    public final void write(PrintStream out) throws IOException {
+      out.append(sb);
+    }
+
+    protected final void line(String... command) {
+      for (String s : command) {
+        sb.append(s);
+      }
+      sb.append(LINE_SEPARATOR);
+    }
+
+    protected abstract void link(Path src, Path dst) throws IOException;
+
+    protected abstract void mkdir(Path path);
+  }
+
+  private static final class UnixShellScriptBuilder extends ShellScriptBuilder {
+
+    public UnixShellScriptBuilder(){
+      line("#!/bin/bash");
+      line();
+    }
+
+    @Override
+    public void command(List<String> command) {
+      line("exec /bin/bash -c \"", StringUtils.join(" ", command), "\"");
+    }
+
+    @Override
+    public void env(String key, String value) {
+      line("export ", key, "=\"", value, "\"");
+    }
+
+    @Override
+    protected void link(Path src, Path dst) throws IOException {
+      line("ln -sf \"", src.toUri().getPath(), "\" \"", dst.toString(), "\"");
+    }
+
+    @Override
+    protected void mkdir(Path path) {
+      line("mkdir -p ", path.toString());
+    }
+  }
+
+  private static final class WindowsShellScriptBuilder
+      extends ShellScriptBuilder {
+
+    public WindowsShellScriptBuilder() {
+      line("@setlocal");
+      line();
+    }
+
+    @Override
+    public void command(List<String> command) {
+      line("@call ", StringUtils.join(" ", command));
+    }
+
+    @Override
+    public void env(String key, String value) {
+      line("@set ", key, "=", value);
+    }
+
+    @Override
+    protected void link(Path src, Path dst) throws IOException {
+      File srcFile = new File(src.toUri().getPath());
+      String srcFileStr = srcFile.getPath();
+      String dstFileStr = new File(dst.toString()).getPath();
+      // If not on Java7+ on Windows, then copy file instead of symlinking.
+      // See also FileUtil#symLink for full explanation.
+      if (!Shell.isJava7OrAbove() && srcFile.isFile()) {
+        line(String.format("@copy \"%s\" \"%s\"", srcFileStr, dstFileStr));
+      } else {
+        line(String.format("@%s symlink \"%s\" \"%s\"", Shell.WINUTILS,
+          dstFileStr, srcFileStr));
+      }
+    }
+
+    @Override
+    protected void mkdir(Path path) {
+      line("@if not exist ", path.toString(), " mkdir ", path.toString());
+    }
   }
 
   private static void putEnvIfNotNull(
@@ -479,7 +543,8 @@ public class ContainerLaunch implements Callable<Integer> {
   }
   
   public void sanitizeEnv(Map<String, String> environment, 
-      Path pwd, List<Path> appDirs) {
+      Path pwd, List<Path> appDirs, Map<Path, List<String>> resources)
+      throws IOException {
     /**
      * Non-modifiable environment variables
      */
@@ -541,13 +606,65 @@ public class ContainerLaunch implements Callable<Integer> {
         YarnConfiguration.NM_ADMIN_USER_ENV,
         YarnConfiguration.DEFAULT_NM_ADMIN_USER_ENV)
     );
+
+    // TODO: Remove Windows check and use this approach on all platforms after
+    // additional testing.  See YARN-358.
+    if (Shell.WINDOWS) {
+      String inputClassPath = environment.get(Environment.CLASSPATH.name());
+      if (inputClassPath != null && !inputClassPath.isEmpty()) {
+        StringBuilder newClassPath = new StringBuilder(inputClassPath);
+
+        // Localized resources do not exist at the desired paths yet, because the
+        // container launch script has not run to create symlinks yet.  This
+        // means that FileUtil.createJarWithClassPath can't automatically expand
+        // wildcards to separate classpath entries for each file in the manifest.
+        // To resolve this, append classpath entries explicitly for each
+        // resource.
+        for (Map.Entry<Path,List<String>> entry : resources.entrySet()) {
+          boolean targetIsDirectory = new File(entry.getKey().toUri().getPath())
+            .isDirectory();
+
+          for (String linkName : entry.getValue()) {
+            // Append resource.
+            newClassPath.append(File.pathSeparator).append(pwd.toString())
+              .append(Path.SEPARATOR).append(linkName);
+
+            // FileUtil.createJarWithClassPath must use File.toURI to convert
+            // each file to a URI to write into the manifest's classpath.  For
+            // directories, the classpath must have a trailing '/', but
+            // File.toURI only appends the trailing '/' if it is a directory that
+            // already exists.  To resolve this, add the classpath entries with
+            // explicit trailing '/' here for any localized resource that targets
+            // a directory.  Then, FileUtil.createJarWithClassPath will guarantee
+            // that the resulting entry in the manifest's classpath will have a
+            // trailing '/', and thus refer to a directory instead of a file.
+            if (targetIsDirectory) {
+              newClassPath.append(Path.SEPARATOR);
+            }
+          }
+        }
+
+        // When the container launches, it takes the parent process's environment
+        // and then adds/overwrites with the entries from the container launch
+        // context.  Do the same thing here for correct substitution of
+        // environment variables in the classpath jar manifest.
+        Map<String, String> mergedEnv = new HashMap<String, String>(
+          System.getenv());
+        mergedEnv.putAll(environment);
+
+        String classPathJar = FileUtil.createJarWithClassPath(
+          newClassPath.toString(), pwd, mergedEnv);
+        environment.put(Environment.CLASSPATH.name(), classPathJar);
+      }
+    }
   }
     
   static void writeLaunchEnv(OutputStream out,
       Map<String,String> environment, Map<Path,List<String>> resources,
       List<String> command)
       throws IOException {
-    ShellScriptBuilder sb = new ShellScriptBuilder();
+    ShellScriptBuilder sb = Shell.WINDOWS ? new WindowsShellScriptBuilder() :
+      new UnixShellScriptBuilder();
     if (environment != null) {
       for (Map.Entry<String,String> env : environment.entrySet()) {
         sb.env(env.getKey().toString(), env.getValue().toString());
@@ -556,21 +673,13 @@ public class ContainerLaunch implements Callable<Integer> {
     if (resources != null) {
       for (Map.Entry<Path,List<String>> entry : resources.entrySet()) {
         for (String linkName : entry.getValue()) {
-          sb.symlink(entry.getKey(), linkName);
+          sb.symlink(entry.getKey(), new Path(linkName));
         }
       }
     }
 
-    ArrayList<String> cmd = new ArrayList<String>(2 * command.size() + 5);
-    cmd.add("exec /bin/bash ");
-    cmd.add("-c ");
-    cmd.add("\"");
-    for (String cs : command) {
-      cmd.add(cs.toString());
-      cmd.add(" ");
-    }
-    cmd.add("\"");
-    sb.line(cmd.toArray(new String[cmd.size()]));
+    sb.command(command);
+
     PrintStream pout = null;
     try {
       pout = new PrintStream(out);
