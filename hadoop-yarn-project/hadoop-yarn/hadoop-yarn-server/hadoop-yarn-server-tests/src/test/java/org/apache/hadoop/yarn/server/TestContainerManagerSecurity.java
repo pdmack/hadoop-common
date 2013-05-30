@@ -45,6 +45,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.ContainerManager;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
@@ -222,7 +223,8 @@ public class TestContainerManagerSecurity {
     ContainerTokenIdentifier modifiedIdentifier =
         new ContainerTokenIdentifier(dummyIdentifier.getContainerID(),
           dummyIdentifier.getNmHostAddress(), "testUser", modifiedResource,
-          Long.MAX_VALUE, dummyIdentifier.getMasterKeyId());
+          Long.MAX_VALUE, dummyIdentifier.getMasterKeyId(),
+          ResourceManager.clusterTimeStamp);
     Token<ContainerTokenIdentifier> modifiedToken = new Token<ContainerTokenIdentifier>(
         modifiedIdentifier.getBytes(), containerToken.getPassword().array(),
         new Text(containerToken.getKind()), new Text(containerToken
@@ -320,7 +322,8 @@ public class TestContainerManagerSecurity {
 
         callWithIllegalContainerID(client, tokenId, allocatedContainer);
         callWithIllegalResource(client, tokenId, allocatedContainer);
-        callWithIllegalUserName(client, tokenId, allocatedContainer);
+        // UserName is no longer sent using containerLaunchContext.
+//        callWithIllegalUserName(client, tokenId, allocatedContainer);
 
         return client;
       }
@@ -338,10 +341,10 @@ public class TestContainerManagerSecurity {
       resourceManager.getRMContainerTokenSecretManager(); 
     final ContainerTokenIdentifier newTokenId =
         new ContainerTokenIdentifier(tokenId.getContainerID(),
-            tokenId.getNmHostAddress(), tokenId.getApplicationSubmitter(),
-            tokenId.getResource(),
-            System.currentTimeMillis() - 1,
-            containerTokenSecreteManager.getCurrentKey().getKeyId());
+          tokenId.getNmHostAddress(), tokenId.getApplicationSubmitter(),
+          tokenId.getResource(), System.currentTimeMillis() - 1,
+          containerTokenSecreteManager.getCurrentKey().getKeyId(),
+          ResourceManager.clusterTimeStamp);
     final byte[] passowrd =
         containerTokenSecreteManager.createPassword(
             newTokenId);
@@ -405,10 +408,15 @@ public class TestContainerManagerSecurity {
       UnsupportedFileSystemException, YarnRemoteException,
       InterruptedException {
 
-    ContainerLaunchContext amContainer = BuilderUtils
-        .newContainerLaunchContext("testUser",
-            Collections.<String, LocalResource>emptyMap(),
-            new HashMap<String, String>(), Arrays.asList("sleep", "100"),
+    // Use ping to simulate sleep on Windows.
+    List<String> cmd = Shell.WINDOWS ?
+      Arrays.asList("ping", "-n", "100", "127.0.0.1", ">nul") :
+      Arrays.asList("sleep", "100");
+
+    ContainerLaunchContext amContainer =
+        BuilderUtils.newContainerLaunchContext(
+            Collections.<String, LocalResource> emptyMap(),
+            new HashMap<String, String>(), cmd,
             new HashMap<String, ByteBuffer>(), null,
             new HashMap<ApplicationAccessType, String>());
 
@@ -416,7 +424,6 @@ public class TestContainerManagerSecurity {
         .newRecordInstance(ApplicationSubmissionContext.class);
     appSubmissionContext.setApplicationId(appID);
     appSubmissionContext.setAMContainerSpec(amContainer);
-    appSubmissionContext.getAMContainerSpec().setUser("testUser");
     appSubmissionContext.setResource(BuilderUtils.newResource(1024, 1));
 
     SubmitApplicationRequest submitRequest = recordFactory
@@ -584,7 +591,7 @@ public class TestContainerManagerSecurity {
     // Authenticated but unauthorized, due to wrong resource
     ContainerLaunchContext context =
         createContainerLaunchContextForTest(tokenId);
-    context.setUser("Saruman"); // Set a different user-name.
+    String user = "invalidUser";
     request.setContainerLaunchContext(context);
     request.setContainer(container);
     try {
@@ -597,7 +604,7 @@ public class TestContainerManagerSecurity {
           "Unauthorized request to start container. "));
       Assert.assertTrue(e.getMessage().contains(
         "Expected user-name " + tokenId.getApplicationSubmitter()
-            + " but found " + context.getUser()));
+            + " but found " + user));
     } catch (IOException e) {
       LOG.info("Got IOException: ",e);
       fail("IOException is not expected.");
@@ -608,7 +615,6 @@ public class TestContainerManagerSecurity {
       ContainerTokenIdentifier tokenId) {
     ContainerLaunchContext context =
         BuilderUtils.newContainerLaunchContext(
-            tokenId.getApplicationSubmitter(),
             new HashMap<String, LocalResource>(),
             new HashMap<String, String>(), new ArrayList<String>(),
             new HashMap<String, ByteBuffer>(), null,
