@@ -32,19 +32,19 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.NodeState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.Dispatcher;
 import org.apache.hadoop.yarn.event.DrainDispatcher;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
 import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatResponse;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerRequest;
 import org.apache.hadoop.yarn.server.api.protocolrecords.RegisterNodeManagerResponse;
 import org.apache.hadoop.yarn.server.api.records.NodeAction;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.QueueMetrics;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.SchedulerEvent;
-import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.junit.After;
 import org.junit.Test;
@@ -260,9 +260,7 @@ public class TestResourceTrackerService {
     ResourceTrackerService resourceTrackerService = rm.getResourceTrackerService();
     RegisterNodeManagerRequest req = Records.newRecord(
         RegisterNodeManagerRequest.class);
-    NodeId nodeId = Records.newRecord(NodeId.class);
-    nodeId.setHost("host2");
-    nodeId.setPort(1234);
+    NodeId nodeId = NodeId.newInstance("host2", 1234);
     req.setNodeId(nodeId);
     req.setHttpPort(1234);
     // trying to register a invalid node.
@@ -394,15 +392,15 @@ public class TestResourceTrackerService {
       int count) throws Exception {
     
     int waitCount = 0;
-    while(rm.getRMContext().getRMNodes().get(nm1.getNodeId())
-        .getNodeHealthStatus().getIsNodeHealthy() == health
+    while((rm.getRMContext().getRMNodes().get(nm1.getNodeId())
+        .getState() != NodeState.UNHEALTHY) == health
         && waitCount++ < 20) {
       synchronized (this) {
         wait(100);
       }
     }
-    Assert.assertFalse(rm.getRMContext().getRMNodes().get(nm1.getNodeId())
-        .getNodeHealthStatus().getIsNodeHealthy() == health);
+    Assert.assertFalse((rm.getRMContext().getRMNodes().get(nm1.getNodeId())
+        .getState() != NodeState.UNHEALTHY) == health);
     Assert.assertEquals("Unhealthy metrics not incremented", count,
         ClusterMetrics.getMetrics().getUnhealthyNMs());
   }

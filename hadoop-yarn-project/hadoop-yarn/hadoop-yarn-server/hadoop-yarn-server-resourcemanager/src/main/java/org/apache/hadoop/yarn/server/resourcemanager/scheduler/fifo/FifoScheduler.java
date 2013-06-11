@@ -41,7 +41,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.QueueACL;
@@ -86,7 +86,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeAddedSc
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeRemovedSchedulerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeUpdateSchedulerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.SchedulerEvent;
-import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 
 @LimitedPrivate("yarn")
 @Evolving
@@ -222,7 +222,7 @@ public class FifoScheduler implements ResourceScheduler, Configurable {
   @Override
   public Allocation allocate(
       ApplicationAttemptId applicationAttemptId, List<ResourceRequest> ask,
-      List<ContainerId> release) {
+      List<ContainerId> release, List<String> blacklistAdditions, List<String> blacklistRemovals) {
     FiCaSchedulerApp application = getApplication(applicationAttemptId);
     if (application == null) {
       LOG.error("Calling allocate on removed " +
@@ -268,7 +268,7 @@ public class FifoScheduler implements ResourceScheduler, Configurable {
         application.showRequests();
 
         // Update application requests
-        application.updateResourceRequests(ask);
+        application.updateResourceRequests(ask, null, null);
 
         LOG.debug("allocate: post-update" +
             " applicationId=" + applicationAttemptId + 
@@ -549,7 +549,7 @@ public class FifoScheduler implements ResourceScheduler, Configurable {
         NodeId nodeId = node.getRMNode().getNodeID();
         ContainerId containerId = BuilderUtils.newContainerId(application
             .getApplicationAttemptId(), application.getNewContainerId());
-        ContainerToken containerToken = null;
+        Token containerToken = null;
 
         containerToken =
             this.rmContext.getContainerTokenSecretManager()
