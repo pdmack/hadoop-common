@@ -37,17 +37,16 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.commons.lang.time.DateFormatUtils;
+import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
-import org.apache.hadoop.yarn.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.api.records.NodeState;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.YarnClient;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.junit.Before;
 import org.junit.Test;
@@ -71,9 +70,9 @@ public class TestYarnCLI {
   @Test
   public void testGetApplicationReport() throws Exception {
     ApplicationCLI cli = createAndGetAppCLI();
-    ApplicationId applicationId = BuilderUtils.newApplicationId(1234, 5);
-    ApplicationReport newApplicationReport = BuilderUtils.newApplicationReport(
-        applicationId, BuilderUtils.newApplicationAttemptId(applicationId, 1),
+    ApplicationId applicationId = ApplicationId.newInstance(1234, 5);
+    ApplicationReport newApplicationReport = ApplicationReport.newInstance(
+        applicationId, ApplicationAttemptId.newInstance(applicationId, 1),
         "user", "queue", "appname", "host", 124, null,
         YarnApplicationState.FINISHED, "diagnostics", "url", 0, 0,
         FinalApplicationStatus.SUCCEEDED, null, "N/A", 0.53789f, "YARN");
@@ -108,9 +107,9 @@ public class TestYarnCLI {
   @Test
   public void testGetAllApplications() throws Exception {
     ApplicationCLI cli = createAndGetAppCLI();
-    ApplicationId applicationId = BuilderUtils.newApplicationId(1234, 5);
-    ApplicationReport newApplicationReport = BuilderUtils.newApplicationReport(
-        applicationId, BuilderUtils.newApplicationAttemptId(applicationId, 1),
+    ApplicationId applicationId = ApplicationId.newInstance(1234, 5);
+    ApplicationReport newApplicationReport = ApplicationReport.newInstance(
+        applicationId, ApplicationAttemptId.newInstance(applicationId, 1),
         "user", "queue", "appname", "host", 124, null,
         YarnApplicationState.FINISHED, "diagnostics", "url", 0, 0,
         FinalApplicationStatus.SUCCEEDED, null, "N/A", 0.53789f, "YARN");
@@ -143,7 +142,7 @@ public class TestYarnCLI {
   @Test
   public void testKillApplication() throws Exception {
     ApplicationCLI cli = createAndGetAppCLI();
-    ApplicationId applicationId = BuilderUtils.newApplicationId(1234, 5);
+    ApplicationId applicationId = ApplicationId.newInstance(1234, 5);
     int result = cli.run(new String[] { "-kill", applicationId.toString() });
     assertEquals(0, result);
     verify(client).killApplication(any(ApplicationId.class));
@@ -163,13 +162,13 @@ public class TestYarnCLI {
     PrintWriter pw = new PrintWriter(baos);
     pw.println("Total Nodes:3");
     pw.print("         Node-Id\tNode-State\tNode-Http-Address\t");
-    pw.println("Health-Status(isNodeHealthy)\tRunning-Containers");
+    pw.println("Running-Containers");
     pw.print("         host0:0\t   RUNNING\t       host1:8888");
-    pw.println("\t                     false\t                 0");
+    pw.println("\t                 0");
     pw.print("         host1:0\t   RUNNING\t       host1:8888");
-    pw.println("\t                     false\t                 0");
+    pw.println("\t                 0");
     pw.print("         host2:0\t   RUNNING\t       host1:8888");
-    pw.println("\t                     false\t                 0");
+    pw.println("\t                 0");
     pw.close();
     String nodesReportStr = baos.toString("UTF-8");
     Assert.assertEquals(nodesReportStr, sysOutStream.toString());
@@ -178,7 +177,7 @@ public class TestYarnCLI {
 
   @Test
   public void testNodeStatus() throws Exception {
-    NodeId nodeId = BuilderUtils.newNodeId("host0", 0);
+    NodeId nodeId = NodeId.newInstance("host0", 0);
     NodeCLI cli = new NodeCLI();
     when(client.getNodeReports()).thenReturn(getNodeReports(3));
     cli.setClient(client);
@@ -194,10 +193,9 @@ public class TestYarnCLI {
     pw.println("\tRack : rack1");
     pw.println("\tNode-State : RUNNING");
     pw.println("\tNode-Http-Address : host1:8888");
-    pw.println("\tHealth-Status(isNodeHealthy) : false");
     pw.println("\tLast-Health-Update : "
       + DateFormatUtils.format(new Date(0), "E dd/MMM/yy hh:mm:ss:SSzz"));
-    pw.println("\tHealth-Report : null");
+    pw.println("\tHealth-Report : ");
     pw.println("\tContainers : 0");
     pw.println("\tMemory-Used : 0M");
     pw.println("\tMemory-Capacity : 0");
@@ -209,7 +207,7 @@ public class TestYarnCLI {
 
   @Test
   public void testAbsentNodeStatus() throws Exception {
-    NodeId nodeId = BuilderUtils.newNodeId("Absenthost0", 0);
+    NodeId nodeId = NodeId.newInstance("Absenthost0", 0);
     NodeCLI cli = new NodeCLI();
     when(client.getNodeReports()).thenReturn(getNodeReports(0));
     cli.setClient(client);
@@ -243,11 +241,10 @@ public class TestYarnCLI {
     List<NodeReport> nodeReports = new ArrayList<NodeReport>();
 
     for (int i = 0; i < noOfNodes; i++) {
-      NodeReport nodeReport = BuilderUtils.newNodeReport(BuilderUtils
-          .newNodeId("host" + i, 0), NodeState.RUNNING, "host" + 1 + ":8888",
+      NodeReport nodeReport = NodeReport.newInstance(NodeId
+        .newInstance("host" + i, 0), NodeState.RUNNING, "host" + 1 + ":8888",
           "rack1", Records.newRecord(Resource.class), Records
-              .newRecord(Resource.class), 0, Records
-              .newRecord(NodeHealthStatus.class));
+              .newRecord(Resource.class), 0, "", 0);
       nodeReports.add(nodeReport);
     }
     return nodeReports;
