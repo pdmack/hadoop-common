@@ -20,12 +20,10 @@ package org.apache.hadoop.yarn.server.resourcemanager;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
-import org.apache.hadoop.yarn.api.records.NodeHealthStatus;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.NodeState;
 import org.apache.hadoop.yarn.api.records.Resource;
@@ -71,13 +69,6 @@ public class MockNodes {
     return list;
   }
 
-  public static NodeId newNodeID(String host, int port) {
-    NodeId nid = recordFactory.newRecordInstance(NodeId.class);
-    nid.setHost(host);
-    nid.setPort(port);
-    return nid;
-  }
-
   public static Resource newResource(int mem) {
     Resource rs = recordFactory.newRecordInstance(Resource.class);
     rs.setMemory(mem);
@@ -104,18 +95,20 @@ public class MockNodes {
     private int cmdPort;
     private Resource perNode;
     private String rackName;
-    private NodeHealthStatus nodeHealthStatus;
+    private String healthReport;
+    private long lastHealthReportTime;
     private NodeState state;
 
     public MockRMNodeImpl(NodeId nodeId, String nodeAddr, String httpAddress,
-        Resource perNode, String rackName, NodeHealthStatus nodeHealthStatus,
-        int cmdPort, String hostName, NodeState state) {
+        Resource perNode, String rackName, String healthReport,
+        long lastHealthReportTime, int cmdPort, String hostName, NodeState state) {
       this.nodeId = nodeId;
       this.nodeAddr = nodeAddr;
       this.httpAddress = httpAddress;
       this.perNode = perNode;
       this.rackName = rackName;
-      this.nodeHealthStatus = nodeHealthStatus;
+      this.healthReport = healthReport;
+      this.lastHealthReportTime = lastHealthReportTime;
       this.cmdPort = cmdPort;
       this.hostName = hostName;
       this.state = state;
@@ -149,11 +142,6 @@ public class MockNodes {
     @Override
     public String getHttpAddress() {
       return this.httpAddress;
-    }
-
-    @Override
-    public NodeHealthStatus getNodeHealthStatus() {
-      return this.nodeHealthStatus;
     }
 
     @Override
@@ -199,6 +187,16 @@ public class MockNodes {
     public List<UpdatedContainerInfo> pullContainerUpdates() {
       return new ArrayList<UpdatedContainerInfo>();
     }
+
+    @Override
+    public String getHealthReport() {
+      return healthReport;
+    }
+
+    @Override
+    public long getLastHealthReportTime() {
+      return lastHealthReportTime;
+    }
   };
 
   private static RMNode buildRMNode(int rack, final Resource perNode, NodeState state, String httpAddr) {
@@ -214,16 +212,12 @@ public class MockNodes {
     if (hostName == null) {
       hostName = "host"+ nid;
     }
-    final NodeId nodeID = newNodeID(hostName, port);
+    final NodeId nodeID = NodeId.newInstance(hostName, port);
+
     final String httpAddress = httpAddr;
-    final NodeHealthStatus nodeHealthStatus =
-        recordFactory.newRecordInstance(NodeHealthStatus.class);
-    if (state != NodeState.UNHEALTHY) {
-      nodeHealthStatus.setIsNodeHealthy(true);
-      nodeHealthStatus.setHealthReport("HealthyMe");
-    }
+    String healthReport = (state == NodeState.UNHEALTHY) ? null : "HealthyMe";
     return new MockRMNodeImpl(nodeID, nodeAddr, httpAddress, perNode, rackName,
-        nodeHealthStatus, nid, hostName, state); 
+        healthReport, 0, nid, hostName, state); 
   }
 
   public static RMNode nodeInfo(int rack, final Resource perNode,

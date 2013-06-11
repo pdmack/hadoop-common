@@ -42,13 +42,13 @@ import org.apache.hadoop.util.ExitUtil;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.GetDelegationTokenRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.GetDelegationTokenResponse;
+import org.apache.hadoop.yarn.api.records.AMCommand;
 import org.apache.hadoop.yarn.api.records.ApplicationAccessType;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerState;
-import org.apache.hadoop.yarn.api.records.DelegationToken;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.security.client.RMDelegationTokenIdentifier;
@@ -63,9 +63,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMAppState;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttempt;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttemptState;
-import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.security.DelegationTokenRenewer;
-import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 import org.apache.hadoop.yarn.util.ProtoUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -87,10 +86,9 @@ public class TestRMRestart {
     UserGroupInformation.setConfiguration(conf);
     conf.set(YarnConfiguration.RECOVERY_ENABLED, "true");
     conf.set(YarnConfiguration.RM_STORE, MemoryRMStateStore.class.getName());
-    conf.set(YarnConfiguration.RM_SCHEDULER, FairScheduler.class.getName());
   }
 
-  @Test
+  @Test (timeout=60000)
   public void testRMRestart() throws Exception {
     Assert.assertTrue(YarnConfiguration.DEFAULT_RM_AM_MAX_ATTEMPTS > 1);
     conf.setInt(YarnConfiguration.RM_AM_MAX_ATTEMPTS,
@@ -253,7 +251,7 @@ public class TestRMRestart {
     AllocateResponse allocResponse = am1.allocate(
         new ArrayList<ResourceRequest>(),
         new ArrayList<ContainerId>());
-    Assert.assertTrue(allocResponse.getReboot());
+    Assert.assertTrue(allocResponse.getAMCommand() == AMCommand.AM_RESYNC);
     
     // NM should be rebooted on heartbeat, even first heartbeat for nm2
     NodeHeartbeatResponse hbResponse = nm1.nodeHeartbeat(true);
@@ -597,7 +595,8 @@ public class TestRMRestart {
     when(request1.getRenewer()).thenReturn("renewer1");
     GetDelegationTokenResponse response1 =
         rm1.getClientRMService().getDelegationToken(request1);
-    DelegationToken delegationToken1 = response1.getRMDelegationToken();
+    org.apache.hadoop.yarn.api.records.Token delegationToken1 =
+        response1.getRMDelegationToken();
     Token<RMDelegationTokenIdentifier> token1 =
         ProtoUtils.convertFromProtoFormat(delegationToken1, null);
     RMDelegationTokenIdentifier dtId1 = token1.decodeIdentifier();
@@ -635,7 +634,8 @@ public class TestRMRestart {
     when(request2.getRenewer()).thenReturn("renewer2");
     GetDelegationTokenResponse response2 =
         rm1.getClientRMService().getDelegationToken(request2);
-    DelegationToken delegationToken2 = response2.getRMDelegationToken();
+    org.apache.hadoop.yarn.api.records.Token delegationToken2 =
+        response2.getRMDelegationToken();
     Token<RMDelegationTokenIdentifier> token2 =
         ProtoUtils.convertFromProtoFormat(delegationToken2, null);
     RMDelegationTokenIdentifier dtId2 = token2.decodeIdentifier();

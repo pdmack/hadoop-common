@@ -20,8 +20,8 @@ package org.apache.hadoop.yarn.client;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.server.MiniYARNCluster;
 import org.apache.hadoop.yarn.service.Service.STATE;
 import org.apache.hadoop.yarn.util.Records;
@@ -64,14 +64,14 @@ public class TestNMClient {
   Configuration conf = null;
   MiniYARNCluster yarnCluster = null;
   YarnClientImpl yarnClient = null;
-  AMRMClientImpl rmClient = null;
+  AMRMClientImpl<ContainerRequest> rmClient = null;
   NMClientImpl nmClient = null;
   List<NodeReport> nodeReports = null;
   ApplicationAttemptId attemptId = null;
   int nodeCount = 3;
 
   @Before
-  public void setup() throws YarnRemoteException, IOException {
+  public void setup() throws YarnException, IOException {
     // start minicluster
     conf = new YarnConfiguration();
     yarnCluster =
@@ -136,7 +136,7 @@ public class TestNMClient {
     }
 
     // start am rm client
-    rmClient = new AMRMClientImpl(attemptId);
+    rmClient = new AMRMClientImpl<ContainerRequest>(attemptId);
     rmClient.init(conf);
     rmClient.start();
     assertNotNull(rmClient);
@@ -175,7 +175,7 @@ public class TestNMClient {
 
   @Test (timeout = 60000)
   public void testNMClient()
-      throws YarnRemoteException, IOException {
+      throws YarnException, IOException {
 
     rmClient.registerApplicationMaster("Host", 10000, "");
 
@@ -185,8 +185,9 @@ public class TestNMClient {
         null, null);
   }
 
-  private Set<Container> allocateContainers(AMRMClientImpl rmClient, int num)
-      throws YarnRemoteException, IOException {
+  private Set<Container> allocateContainers(
+      AMRMClientImpl<ContainerRequest> rmClient, int num)
+      throws YarnException, IOException {
     // setup container request
     Resource capability = Resource.newInstance(1024, 0);
     Priority priority = Priority.newInstance(0);
@@ -201,7 +202,8 @@ public class TestNMClient {
     }
 
     int containersRequestedAny = rmClient.remoteRequestsTable.get(priority)
-        .get(ResourceRequest.ANY).get(capability).getNumContainers();
+        .get(ResourceRequest.ANY).get(capability).remoteRequest
+        .getNumContainers();
 
     // RM should allocate container within 2 calls to allocate()
     int allocatedContainerCount = 0;
@@ -226,7 +228,7 @@ public class TestNMClient {
   }
 
   private void testContainerManagement(NMClientImpl nmClient,
-      Set<Container> containers) throws IOException {
+      Set<Container> containers) throws YarnException, IOException {
     int size = containers.size();
     int i = 0;
     for (Container container : containers) {
@@ -236,7 +238,7 @@ public class TestNMClient {
         nmClient.getContainerStatus(container.getId(), container.getNodeId(),
             container.getContainerToken());
         fail("Exception is expected");
-      } catch (YarnRemoteException e) {
+      } catch (YarnException e) {
         assertTrue("The thrown exception is not expected",
             e.getMessage().contains("is not handled by this NodeManager"));
       }
@@ -247,7 +249,7 @@ public class TestNMClient {
         nmClient.stopContainer(container.getId(), container.getNodeId(),
             container.getContainerToken());
         fail("Exception is expected");
-      } catch (YarnRemoteException e) {
+      } catch (YarnException e) {
         assertTrue("The thrown exception is not expected",
             e.getMessage().contains(
                 "is either not started yet or already stopped"));
@@ -263,44 +265,26 @@ public class TestNMClient {
       clc.setTokens(securityTokens);
       try {
         nmClient.startContainer(container, clc);
-      } catch (YarnRemoteException e) {
+      } catch (YarnException e) {
         fail("Exception is not expected");
       }
 
       // leave one container unclosed
       if (++i < size) {
-        try {
-          ContainerStatus status = nmClient.getContainerStatus(container.getId(),
-              container.getNodeId(), container.getContainerToken());
-          // verify the container is started and in good shape
-          assertEquals(container.getId(), status.getContainerId());
-          assertEquals(ContainerState.RUNNING, status.getState());
-          assertEquals("", status.getDiagnostics());
-          assertEquals(-1000, status.getExitStatus());
-        } catch (YarnRemoteException e) {
-          fail("Exception is not expected");
-        }
+        // NodeManager may still need some time to make the container started
+        testGetContainerStatus(container, i, ContainerState.RUNNING, "",
+            -1000);
 
         try {
           nmClient.stopContainer(container.getId(), container.getNodeId(),
               container.getContainerToken());
-        } catch (YarnRemoteException e) {
+        } catch (YarnException e) {
           fail("Exception is not expected");
         }
 
         // getContainerStatus can be called after stopContainer
-        try {
-          ContainerStatus status = nmClient.getContainerStatus(
-              container.getId(), container.getNodeId(),
-              container.getContainerToken());
-          assertEquals(container.getId(), status.getContainerId());
-          assertEquals(ContainerState.RUNNING, status.getState());
-          assertTrue("" + i, status.getDiagnostics().contains(
-              "Container killed by the ApplicationMaster."));
-          assertEquals(-1000, status.getExitStatus());
-        } catch (YarnRemoteException e) {
-          fail("Exception is not expected");
-        }
+        testGetContainerStatus(container, i, ContainerState.COMPLETE,
+            "Container killed by the ApplicationMaster.", 143);
       }
     }
   }
@@ -310,6 +294,30 @@ public class TestNMClient {
       Thread.sleep(sleepTime);
     } catch (InterruptedException e) {
       e.printStackTrace();
+    }
+  }
+
+  private void testGetContainerStatus(Container container, int index,
+      ContainerState state, String diagnostics, int exitStatus)
+          throws YarnException, IOException {
+    while (true) {
+      try {
+        ContainerStatus status = nmClient.getContainerStatus(
+            container.getId(), container.getNodeId(),
+                container.getContainerToken());
+        // NodeManager may still need some time to get the stable
+        // container status
+        if (status.getState() == state) {
+          assertEquals(container.getId(), status.getContainerId());
+          assertTrue("" + index + ": " + status.getDiagnostics(),
+              status.getDiagnostics().contains(diagnostics));
+          assertEquals(exitStatus, status.getExitStatus());
+          break;
+        }
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
   }
 
