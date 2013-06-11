@@ -1,6 +1,30 @@
 Hadoop MapReduce Change Log
 
-Release 2.0.5-beta - UNRELEASED
+Release 2.3.0 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
+Release 2.2.0 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
+Release 2.1.0-beta - UNRELEASED
 
   INCOMPATIBLE CHANGES
 
@@ -108,10 +132,50 @@ Release 2.0.5-beta - UNRELEASED
     filecache.DistributedCache for binary compatibility with mapred in 1.x.
     (Zhijie Shen via vinodkv)
 
+    MAPREDUCE-5228. Bring back FileInputFormat.Counter and
+    FileOuputFormat.Counter for binary compatibility with 1.x mapred APIs.
+    (Mayank Bansal via vinodkv)
+
+    MAPREDUCE-5176. Add annotation for tagging tasks as responsive to
+    preemption. (Carlo Curino, cdouglas)
+
+    MAPREDUCE-5275. Bring back a couple of APIs in mapreduce.security.TokenCache
+    for binary compatibility with 1.x mapreduce APIs. (Mayank Bansal via vinodkv)
+
+    MAPREDUCE-5231. Bring back a constructor in mapred's
+    DBInputFormat.DBRecordReader for binary compatibility with 1.x mapred APIs.
+    (Zhijie Shen via vinodkv)
+
+    MAPREDUCE-5273. Bring back a couple of protected variables in mapred and
+    mapreduce CombineFileRecordReader for binary compatibility with 1.x APIs.
+    (Mayank Bansal via vinodkv)
+
+    MAPREDUCE-5280. Bring back removed constructor and a method in mapreduce
+    ClusterMetrics for binary compatibility with 1.x APIs. (Mayank Bansal via
+    vinodkv)
+
+    MAPREDUCE-5289. Updated MR App to use Token directly after YARN-717. (Jian He
+    via vinodkv)
+
+    MAPREDUCE-5229. Put back FileOutputCommitter.TEMP_DIR_NAME in mapreduce for
+    binary compatibility with 1.x APIs. (Zhijie Shen via vinodkv)
+
+    MAPREDUCE-5274. Bring back SecureShuffleUtils.toHex in mapreduce for binary
+    compatibility with 1.x APIs. (Mayank Bansal via vinodkv)
+
+    MAPREDUCE-5300. Fix backward incompatibility for
+    o.a.h.mapreduce.filecache.DistributedCache. (Zhijie Shen via acmurthy)
+
+    MAPREDUCE-5283. Over 10 different tests have near identical
+    implementations of AppContext (Sandy Ryza via jlowe)
+
   OPTIMIZATIONS
 
     MAPREDUCE-4974. Optimising the LineRecordReader initialize() method 
     (Gelesh via bobby)
+
+    MAPREDUCE-5268. Improve history server startup performance (Karthik
+    Kambatla via jlowe)
 
   BUG FIXES
 
@@ -303,8 +367,30 @@ Release 2.0.5-beta - UNRELEASED
     MAPREDUCE-5257. Fix issues in TestContainerLauncherImpl after YARN-617.
     (Omkar Vinit Joshi via vinodkv)
 
-    MAPREDUCE-5261. Fix issues in TestRMContainerAllocator after YARN-617.
-    (Omkar Vinit Joshi via vinodkv)
+    MAPREDUCE-5282. Updating MR App to use immutable ApplicationID after
+    YARN-716. (Siddharth Seth via vinodkv)
+
+    MAPREDUCE-5286. Change MapReduce to use ContainerTokenIdentifier instead
+    of the entire Container in the startContainer call - YARN-684.
+    (Vinod Kumar Vavilapalli via sseth)
+
+    MAPREDUCE-5299. Fix backward incompatibility for TaskCompletionEvent by
+    adding back setTaskID. (Zhijie Shen via acmurthy) 
+
+    MAPREDUCE-5296. Fix backward incompatibility for JobControl by adding the
+    omitted addJob. (Zhijie Shen via acmurthy) 
+
+    MAPREDUCE-5245. Added back constants to JobConf to fix incompatibilities.  
+    (Zhijie Shen via acmurthy) 
+
+    MAPREDUCE-5297. Updated MR App since BuilderUtils is no longer public
+    after YARN-748. (Jian He via vinodkv)
+
+    MAPREDUCE-5301. Updated MR code to work with YARN-635 changes of renaming
+    YarnRemoteException to YarnException. (Siddharth Seth via vinodkv)
+
+    MAPREDUCE-5308. Shuffling to memory can get out-of-sync when fetching
+    multiple compressed map outputs (Nathan Roberts via jlowe)
 
   BREAKDOWN OF HADOOP-8562 SUBTASKS
 
@@ -333,7 +419,15 @@ Release 2.0.5-beta - UNRELEASED
     MAPREDUCE-5177. Use common utils FileUtil#setReadable/Writable/Executable & 
     FileUtil#canRead/Write/Execute. (Ivan Mitic via suresh)
 
-Release 2.0.4-alpha - 2013-04-25
+    MAPREDUCE-5291. Change MR App to use updated property names in
+    container-log4j.properties. (Zhijie Shen via sseth)
+
+    MAPREDUCE-5303. Changed MR app after moving ProtoBase to package impl.pb via
+    YARN-724. (Jian He via vinodkv)
+
+    MAPREDUCE-5312. TestRMNMInfo is failing. (sandyr via tucu)
+
+Release 2.0.5-alpha - 06/06/2013
 
   INCOMPATIBLE CHANGES
 
@@ -898,7 +992,25 @@ Release 2.0.0-alpha - 05-23-2012
     MAPREDUCE-4444. nodemanager fails to start when one of the local-dirs is
     bad (Jason Lowe via bobby)
 
-Release 0.23.8 - UNRELEASED
+Release 0.23.9 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+    MAPREDUCE-5268. Improve history server startup performance (Karthik
+    Kambatla via jlowe)
+
+  BUG FIXES
+
+    MAPREDUCE-5308. Shuffling to memory can get out-of-sync when fetching
+    multiple compressed map outputs (Nathan Roberts via jlowe)
+
+Release 0.23.8 - 2013-06-05
 
   INCOMPATIBLE CHANGES
 
@@ -922,7 +1034,7 @@ Release 0.23.8 - UNRELEASED
     MAPREDUCE-4927. Historyserver 500 error due to NPE when accessing specific
     counters page for failed job. (Ashwin Shankar via jlowe)
 
-Release 0.23.7 - UNRELEASED
+Release 0.23.7 - 2013-04-18
 
   INCOMPATIBLE CHANGES
 
@@ -991,7 +1103,7 @@ Release 0.23.7 - UNRELEASED
     MAPREDUCE-5137. AM web UI: clicking on Map Task results in 500 error
     (Thomas Graves via jlowe)
 
-Release 0.23.6 - UNRELEASED
+Release 0.23.6 - 2013-02-06
 
   INCOMPATIBLE CHANGES
 

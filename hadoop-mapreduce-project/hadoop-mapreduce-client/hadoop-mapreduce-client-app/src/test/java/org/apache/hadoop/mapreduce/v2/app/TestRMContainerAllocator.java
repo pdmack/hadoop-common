@@ -45,7 +45,6 @@ import junit.framework.Assert;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hadoop.mapreduce.v2.api.records.JobId;
 import org.apache.hadoop.mapreduce.v2.api.records.JobState;
@@ -72,11 +71,10 @@ import org.apache.hadoop.mapreduce.v2.util.MRBuilderUtils;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
-import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.yarn.Clock;
 import org.apache.hadoop.yarn.ClusterInfo;
 import org.apache.hadoop.yarn.SystemClock;
-import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.YarnRuntimeException;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.ContainerExitStatus;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
@@ -100,9 +98,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.SchedulerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 @SuppressWarnings("unchecked")
@@ -113,17 +109,9 @@ public class TestRMContainerAllocator {
   static final RecordFactory recordFactory = RecordFactoryProvider
       .getRecordFactory(null);
 
-  @Before
-  public void setup() {
-    // This is done to make sure token service doesn't use ip.
-    SecurityUtil.setTokenServiceUseIp(false);
-  }
-
   @After
   public void tearDown() {
     DefaultMetricsSystem.shutdown();
-    SecurityUtil.setTokenServiceUseIp(
-        CommonConfigurationKeys.HADOOP_SECURITY_TOKEN_SERVICE_USE_IP_DEFAULT);
   }
 
   @Test
@@ -1226,16 +1214,19 @@ public class TestRMContainerAllocator {
     @Override
     public synchronized Allocation allocate(
         ApplicationAttemptId applicationAttemptId, List<ResourceRequest> ask,
-        List<ContainerId> release) {
+        List<ContainerId> release, 
+        List<String> blacklistAdditions, List<String> blacklistRemovals) {
       List<ResourceRequest> askCopy = new ArrayList<ResourceRequest>();
       for (ResourceRequest req : ask) {
         ResourceRequest reqCopy = ResourceRequest.newInstance(req
-            .getPriority(), req.getHostName(), req.getCapability(), req
+            .getPriority(), req.getResourceName(), req.getCapability(), req
             .getNumContainers());
         askCopy.add(reqCopy);
       }
       lastAsk = ask;
-      return super.allocate(applicationAttemptId, askCopy, release);
+      return super.allocate(
+          applicationAttemptId, askCopy, release, 
+          blacklistAdditions, blacklistRemovals);
     }
   }
 
@@ -1441,7 +1432,7 @@ public class TestRMContainerAllocator {
         super.heartbeat();
       } catch (Exception e) {
         LOG.error("error in heartbeat ", e);
-        throw new YarnException(e);
+        throw new YarnRuntimeException(e);
       }
 
       List<TaskAttemptContainerAssignedEvent> result
@@ -1607,7 +1598,7 @@ public class TestRMContainerAllocator {
     AppContext appContext = mock(AppContext.class);
     when(appContext.getClock()).thenReturn(clock);
     when(appContext.getApplicationID()).thenReturn(
-        BuilderUtils.newApplicationId(1, 1));
+        ApplicationId.newInstance(1, 1));
 
     RMContainerAllocator allocator = new RMContainerAllocator(
         mock(ClientService.class), appContext) {
@@ -1665,7 +1656,7 @@ public class TestRMContainerAllocator {
     TaskAttemptId attemptId = MRBuilderUtils.newTaskAttemptId(
         MRBuilderUtils.newTaskId(
             MRBuilderUtils.newJobId(1, 1, 1), 1, TaskType.MAP), 1);
-    ApplicationId applicationId = BuilderUtils.newApplicationId(1, 1);
+    ApplicationId applicationId = ApplicationId.newInstance(1, 1);
     ApplicationAttemptId applicationAttemptId = ApplicationAttemptId.newInstance(
         applicationId, 1);
     ContainerId containerId = ContainerId.newInstance(applicationAttemptId, 1);
