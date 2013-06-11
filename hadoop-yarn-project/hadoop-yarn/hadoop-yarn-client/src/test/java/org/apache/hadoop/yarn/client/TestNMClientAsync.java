@@ -45,14 +45,13 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.junit.Test;
 
 
@@ -63,7 +62,7 @@ public class TestNMClientAsync {
 
   private NMClientAsync asyncClient;
   private NodeId nodeId;
-  private ContainerToken containerToken;
+  private Token containerToken;
 
   @Test (timeout = 30000)
   public void testNMClientAsync() throws Exception {
@@ -122,6 +121,11 @@ public class TestNMClientAsync {
     }
     Assert.assertEquals("Error occurs in ContainerEventProcessor", 0,
         ((MockNMClientAsync1) asyncClient).errorMsgs.size());
+    // When the callback functions are all executed, the event processor threads
+    // may still not terminate and the containers may still not removed.
+    while (asyncClient.containers.size() > 0) {
+      Thread.sleep(10);
+    }
     asyncClient.stop();
     Assert.assertFalse(
         "The thread of Container Management Event Dispatcher is still alive",
@@ -135,7 +139,7 @@ public class TestNMClientAsync {
         Collections.synchronizedSet(new HashSet<String>());
 
     protected MockNMClientAsync1(int expectedSuccess, int expectedFailure)
-        throws YarnRemoteException, IOException {
+        throws YarnException, IOException {
       super(MockNMClientAsync1.class.getName(), mockNMClient(0),
           new TestCallbackHandler1(expectedSuccess, expectedFailure));
     }
@@ -360,7 +364,7 @@ public class TestNMClientAsync {
   }
 
   private NMClient mockNMClient(int mode)
-      throws YarnRemoteException, IOException {
+      throws YarnException, IOException {
     NMClient client = mock(NMClient.class);
     switch (mode) {
       case 0:
@@ -368,10 +372,10 @@ public class TestNMClientAsync {
             any(ContainerLaunchContext.class))).thenReturn(
                 Collections.<String, ByteBuffer>emptyMap());
         when(client.getContainerStatus(any(ContainerId.class), any(NodeId.class),
-            any(ContainerToken.class))).thenReturn(
+            any(Token.class))).thenReturn(
                 recordFactory.newRecordInstance(ContainerStatus.class));
         doNothing().when(client).stopContainer(any(ContainerId.class),
-            any(NodeId.class), any(ContainerToken.class));
+            any(NodeId.class), any(Token.class));
         break;
       case 1:
         doThrow(RPCUtil.getRemoteException("Start Exception")).when(client)
@@ -379,21 +383,21 @@ public class TestNMClientAsync {
                 any(ContainerLaunchContext.class));
         doThrow(RPCUtil.getRemoteException("Query Exception")).when(client)
             .getContainerStatus(any(ContainerId.class), any(NodeId.class),
-                any(ContainerToken.class));
+                any(Token.class));
         doThrow(RPCUtil.getRemoteException("Stop Exception")).when(client)
             .stopContainer(any(ContainerId.class), any(NodeId.class),
-                any(ContainerToken.class));
+                any(Token.class));
         break;
       case 2:
         when(client.startContainer(any(Container.class),
             any(ContainerLaunchContext.class))).thenReturn(
                 Collections.<String, ByteBuffer>emptyMap());
         when(client.getContainerStatus(any(ContainerId.class), any(NodeId.class),
-            any(ContainerToken.class))).thenReturn(
+            any(Token.class))).thenReturn(
                 recordFactory.newRecordInstance(ContainerStatus.class));
         doThrow(RPCUtil.getRemoteException("Stop Exception")).when(client)
             .stopContainer(any(ContainerId.class), any(NodeId.class),
-                any(ContainerToken.class));
+                any(Token.class));
     }
     return client;
   }
@@ -435,7 +439,7 @@ public class TestNMClientAsync {
     private CyclicBarrier barrierB;
 
     protected MockNMClientAsync2(CyclicBarrier barrierA, CyclicBarrier barrierB,
-        CyclicBarrier barrierC) throws YarnRemoteException, IOException {
+        CyclicBarrier barrierC) throws YarnException, IOException {
       super(MockNMClientAsync2.class.getName(), mockNMClient(0),
           new TestCallbackHandler2(barrierC));
       this.barrierA = barrierA;
@@ -526,15 +530,14 @@ public class TestNMClientAsync {
 
   private Container mockContainer(int i) {
     ApplicationId appId =
-        BuilderUtils.newApplicationId(System.currentTimeMillis(), 1);
+        ApplicationId.newInstance(System.currentTimeMillis(), 1);
     ApplicationAttemptId attemptId =
         ApplicationAttemptId.newInstance(appId, 1);
     ContainerId containerId = ContainerId.newInstance(attemptId, i);
     nodeId = NodeId.newInstance("localhost", 0);
     // Create an empty record
-    containerToken = recordFactory.newRecordInstance(ContainerToken.class);
-    return BuilderUtils.newContainer(containerId, nodeId, null, null, null,
+    containerToken = recordFactory.newRecordInstance(Token.class);
+    return Container.newInstance(containerId, nodeId, null, null, null,
       containerToken);
   }
-
 }

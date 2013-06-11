@@ -458,7 +458,8 @@ public class BlockManager {
                          numReplicas.decommissionedReplicas();
     
     if (block instanceof BlockInfo) {
-      String fileName = ((BlockInfo)block).getBlockCollection().getName();
+      BlockCollection bc = ((BlockInfo) block).getBlockCollection();
+      String fileName = (bc == null) ? "[orphaned]" : bc.getName();
       out.print(fileName + ": ");
     }
     // l: == live:, d: == decommissioned c: == corrupt e: == excess
@@ -2155,7 +2156,7 @@ assert storedBlock.findDatanode(dn) < 0 : "Block " + block
       return storedBlock;
     }
 
-    // do not try to handle over/under-replicated blocks during safe mode
+    // do not try to handle over/under-replicated blocks during first safe mode
     if (!namesystem.isPopulatingReplQueues()) {
       return storedBlock;
     }
@@ -2422,30 +2423,14 @@ assert storedBlock.findDatanode(dn) < 0 : "Block " + block
     BlockCollection bc = getBlockCollection(b);
     final Map<String, List<DatanodeDescriptor>> rackMap
         = new HashMap<String, List<DatanodeDescriptor>>();
-    for(final Iterator<DatanodeDescriptor> iter = nonExcess.iterator();
-        iter.hasNext(); ) {
-      final DatanodeDescriptor node = iter.next();
-      final String rackName = node.getNetworkLocation();
-      List<DatanodeDescriptor> datanodeList = rackMap.get(rackName);
-      if (datanodeList == null) {
-        datanodeList = new ArrayList<DatanodeDescriptor>();
-        rackMap.put(rackName, datanodeList);
-      }
-      datanodeList.add(node);
-    }
+    final List<DatanodeDescriptor> moreThanOne = new ArrayList<DatanodeDescriptor>();
+    final List<DatanodeDescriptor> exactlyOne = new ArrayList<DatanodeDescriptor>();
     
     // split nodes into two sets
-    // priSet contains nodes on rack with more than one replica
-    // remains contains the remaining nodes
-    final List<DatanodeDescriptor> priSet = new ArrayList<DatanodeDescriptor>();
-    final List<DatanodeDescriptor> remains = new ArrayList<DatanodeDescriptor>();
-    for(List<DatanodeDescriptor> datanodeList : rackMap.values()) {
-      if (datanodeList.size() == 1 ) {
-        remains.add(datanodeList.get(0));
-      } else {
-        priSet.addAll(datanodeList);
-      }
-    }
+    // moreThanOne contains nodes on rack with more than one replica
+    // exactlyOne contains the remaining nodes
+    replicator.splitNodesWithRack(nonExcess, rackMap, moreThanOne,
+        exactlyOne);
     
     // pick one node to delete that favors the delete hint
     // otherwise pick one with least space from priSet if it is not empty
@@ -2455,30 +2440,18 @@ assert storedBlock.findDatanode(dn) < 0 : "Block " + block
       // check if we can delete delNodeHint
       final DatanodeInfo cur;
       if (firstOne && delNodeHint !=null && nonExcess.contains(delNodeHint)
-          && (priSet.contains(delNodeHint)
-              || (addedNode != null && !priSet.contains(addedNode))) ) {
+          && (moreThanOne.contains(delNodeHint)
+              || (addedNode != null && !moreThanOne.contains(addedNode))) ) {
         cur = delNodeHint;
       } else { // regular excessive replica removal
         cur = replicator.chooseReplicaToDelete(bc, b, replication,
-            priSet, remains);
+        		moreThanOne, exactlyOne);
       }
       firstOne = false;
 
-      // adjust rackmap, priSet, and remains
-      String rack = cur.getNetworkLocation();
-      final List<DatanodeDescriptor> datanodes = rackMap.get(rack);
-      datanodes.remove(cur);
-      if (datanodes.isEmpty()) {
-        rackMap.remove(rack);
-      }
-      if (priSet.remove(cur)) {
-        if (datanodes.size() == 1) {
-          priSet.remove(datanodes.get(0));
-          remains.add(datanodes.get(0));
-        }
-      } else {
-        remains.remove(cur);
-      }
+      // adjust rackmap, moreThanOne, and exactlyOne
+      replicator.adjustSetsWithChosenReplica(rackMap, moreThanOne,
+          exactlyOne, cur);
 
       nonExcess.remove(cur);
       addToExcessReplicate(cur, b);
@@ -2896,8 +2869,9 @@ assert storedBlock.findDatanode(dn) < 0 : "Block " + block
     addToInvalidates(block);
     corruptReplicas.removeFromCorruptReplicasMap(block);
     blocksMap.removeBlock(block);
-    // Remove the block from pendingReplications
+    // Remove the block from pendingReplications and neededReplications
     pendingReplications.remove(block);
+    neededReplications.remove(block, UnderReplicatedBlocks.LEVEL);
     if (postponedMisreplicatedBlocks.remove(block)) {
       postponedMisreplicatedBlocksCount.decrementAndGet();
     }
@@ -3106,10 +3080,15 @@ assert storedBlock.findDatanode(dn) < 0 : "Block " + block
           computeDatanodeWork();
           processPendingReplications();
           Thread.sleep(replicationRecheckInterval);
-        } catch (InterruptedException ie) {
-          LOG.warn("ReplicationMonitor thread received InterruptedException.", ie);
-          break;
         } catch (Throwable t) {
+          if (!namesystem.isRunning()) {
+            LOG.info("Stopping ReplicationMonitor.");
+            if (!(t instanceof InterruptedException)) {
+              LOG.info("ReplicationMonitor received an exception"
+                  + " while shutting down.", t);
+            }
+            break;
+          }
           LOG.fatal("ReplicationMonitor thread received Runtime exception. ", t);
           terminate(1, t);
         }

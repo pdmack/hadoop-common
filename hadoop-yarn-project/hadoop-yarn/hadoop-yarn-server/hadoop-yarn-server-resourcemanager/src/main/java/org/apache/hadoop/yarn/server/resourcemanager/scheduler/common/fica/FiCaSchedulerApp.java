@@ -134,9 +134,11 @@ public class FiCaSchedulerApp extends SchedulerApplication {
   }
 
   public synchronized void updateResourceRequests(
-      List<ResourceRequest> requests) {
+      List<ResourceRequest> requests, 
+      List<String> blacklistAdditions, List<String> blacklistRemovals) {
     if (!isStopped) {
-      this.appSchedulingInfo.updateResourceRequests(requests);
+      this.appSchedulingInfo.updateResourceRequests(requests, 
+          blacklistAdditions, blacklistRemovals);
     }
   }
 
@@ -152,8 +154,8 @@ public class FiCaSchedulerApp extends SchedulerApplication {
     return this.appSchedulingInfo.getPriorities();
   }
 
-  public ResourceRequest getResourceRequest(Priority priority, String nodeAddress) {
-    return this.appSchedulingInfo.getResourceRequest(priority, nodeAddress);
+  public ResourceRequest getResourceRequest(Priority priority, String resourceName) {
+    return this.appSchedulingInfo.getResourceRequest(priority, resourceName);
   }
 
   public synchronized int getTotalRequiredResources(Priority priority) {
@@ -162,6 +164,10 @@ public class FiCaSchedulerApp extends SchedulerApplication {
   
   public Resource getResource(Priority priority) {
     return this.appSchedulingInfo.getResource(priority);
+  }
+  
+  public boolean isBlacklisted(String resourceName) {
+    return this.appSchedulingInfo.isBlacklisted(resourceName);
   }
 
   /**
@@ -332,6 +338,11 @@ public class FiCaSchedulerApp extends SchedulerApplication {
         schedulingOpportunities.count(priority) + 1);
   }
 
+  synchronized public void subtractSchedulingOpportunity(Priority priority) {
+    int count = schedulingOpportunities.count(priority) - 1;
+    this.schedulingOpportunities.setCount(priority, Math.max(count,  0));
+  }
+  
   /**
    * Return the number of times the application has been given an opportunity
    * to schedule a task at the given priority since the last time it

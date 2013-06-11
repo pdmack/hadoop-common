@@ -18,14 +18,17 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
-import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 
 /**
- * The exception is thrown when the requested resource is out of the range
+ * The exception is thrown when a {@link ResourceRequest} is out of the range
  * of the configured lower and upper resource boundaries.
  *
  */
 public class InvalidResourceRequestException extends YarnException {
+
+  private static final long serialVersionUID = 13498237L;
 
   public InvalidResourceRequestException(Throwable cause) {
     super(cause);

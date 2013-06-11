@@ -46,12 +46,12 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.AbstractEvent;
 import org.apache.hadoop.yarn.event.EventHandler;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.service.AbstractService;
 import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
@@ -288,7 +288,7 @@ public class NMClientAsync extends AbstractService {
   }
 
   public void stopContainer(ContainerId containerId, NodeId nodeId,
-      ContainerToken containerToken) {
+      Token containerToken) {
     if (containers.get(containerId) == null) {
       callbackHandler.onStopContainerError(containerId,
           RPCUtil.getRemoteException("Container " + containerId +
@@ -305,7 +305,7 @@ public class NMClientAsync extends AbstractService {
   }
 
   public void getContainerStatus(ContainerId containerId, NodeId nodeId,
-      ContainerToken containerToken) {
+      Token containerToken) {
     try {
       events.put(new ContainerEvent(containerId, nodeId, containerToken,
           ContainerEventType.QUERY_CONTAINER));
@@ -343,10 +343,10 @@ public class NMClientAsync extends AbstractService {
       extends AbstractEvent<ContainerEventType>{
     private ContainerId containerId;
     private NodeId nodeId;
-    private ContainerToken containerToken;
+    private Token containerToken;
 
     public ContainerEvent(ContainerId containerId, NodeId nodeId,
-        ContainerToken containerToken, ContainerEventType type) {
+        Token containerToken, ContainerEventType type) {
       super(type);
       this.containerId = containerId;
       this.nodeId = nodeId;
@@ -361,7 +361,7 @@ public class NMClientAsync extends AbstractService {
       return nodeId;
     }
 
-    public ContainerToken getContainerToken() {
+    public Token getContainerToken() {
       return containerToken;
     }
   }
@@ -446,7 +446,7 @@ public class NMClientAsync extends AbstractService {
                 + "Container " + containerId, thr);
           }
           return ContainerState.RUNNING;
-        } catch (YarnRemoteException e) {
+        } catch (YarnException e) {
           return onExceptionRaised(container, event, e);
         } catch (IOException e) {
           return onExceptionRaised(container, event, e);
@@ -490,7 +490,7 @@ public class NMClientAsync extends AbstractService {
                 + "Container " + event.getContainerId(), thr);
           }
           return ContainerState.DONE;
-        } catch (YarnRemoteException e) {
+        } catch (YarnException e) {
           return onExceptionRaised(container, event, e);
         } catch (IOException e) {
           return onExceptionRaised(container, event, e);
@@ -602,7 +602,7 @@ public class NMClientAsync extends AbstractService {
                 "Unchecked exception is thrown from onContainerStatusReceived" +
                     " for Container " + event.getContainerId(), thr);
           }
-        } catch (YarnRemoteException e) {
+        } catch (YarnException e) {
           onExceptionRaised(containerId, e);
         } catch (IOException e) {
           onExceptionRaised(containerId, e);
@@ -615,6 +615,9 @@ public class NMClientAsync extends AbstractService {
           LOG.info("Container " + containerId + " is already stopped or failed");
         } else {
           container.handle(event);
+          if (isCompletelyDone(container)) {
+            containers.remove(containerId);
+          }
         }
       }
     }

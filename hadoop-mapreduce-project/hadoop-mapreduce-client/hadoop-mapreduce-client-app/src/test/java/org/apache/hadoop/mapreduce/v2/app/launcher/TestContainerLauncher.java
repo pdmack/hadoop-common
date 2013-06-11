@@ -61,13 +61,13 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.HadoopYarnProtoRPC;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
-import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.junit.Test;
 
 public class TestContainerLauncher {
@@ -82,7 +82,7 @@ public class TestContainerLauncher {
   @Test
   public void testPoolSize() throws InterruptedException {
 
-    ApplicationId appId = BuilderUtils.newApplicationId(12345, 67);
+    ApplicationId appId = ApplicationId.newInstance(12345, 67);
     ApplicationAttemptId appAttemptId = ApplicationAttemptId.newInstance(
       appId, 3);
     JobId jobId = MRBuilderUtils.newJobId(appId, 8);
@@ -157,7 +157,7 @@ public class TestContainerLauncher {
 
   @Test
   public void testPoolLimits() throws InterruptedException {
-    ApplicationId appId = BuilderUtils.newApplicationId(12345, 67);
+    ApplicationId appId = ApplicationId.newInstance(12345, 67);
     ApplicationAttemptId appAttemptId = ApplicationAttemptId.newInstance(
       appId, 3);
     JobId jobId = MRBuilderUtils.newJobId(appId, 8);
@@ -346,7 +346,7 @@ public class TestContainerLauncher {
       return new ContainerLauncherImpl(context) {
         @Override
         protected ContainerManager getCMProxy(ContainerId containerID,
-            String containerManagerBindAddr, ContainerToken containerToken)
+            String containerManagerBindAddr, Token containerToken)
             throws IOException {
           // make proxy connect to our local containerManager server
           ContainerManager proxy = (ContainerManager) rpc.getProxy(
@@ -376,13 +376,12 @@ public class TestContainerLauncher {
     public StartContainerResponse startContainer(StartContainerRequest request)
         throws IOException {
 
+      ContainerTokenIdentifier containerTokenIdentifier =
+          MRApp.newContainerTokenIdentifier(request.getContainerToken());
+
       // Validate that the container is what RM is giving.
-      Assert.assertEquals(MRApp.NM_HOST, request.getContainer().getNodeId()
-          .getHost());
-      Assert.assertEquals(MRApp.NM_PORT, request.getContainer().getNodeId()
-          .getPort());
-      Assert.assertEquals(MRApp.NM_HOST + ":" + MRApp.NM_HTTP_PORT, request
-          .getContainer().getNodeHttpAddress());
+      Assert.assertEquals(MRApp.NM_HOST + ":" + MRApp.NM_PORT,
+        containerTokenIdentifier.getNmHostAddress());
 
       StartContainerResponse response = recordFactory
           .newRecordInstance(StartContainerResponse.class);
@@ -395,7 +394,7 @@ public class TestContainerLauncher {
         throw new UndeclaredThrowableException(e);
       }
       status.setState(ContainerState.RUNNING);
-      status.setContainerId(request.getContainer().getId());
+      status.setContainerId(containerTokenIdentifier.getContainerID());
       status.setExitStatus(0);
       return response;
     }

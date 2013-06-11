@@ -62,7 +62,7 @@ import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.api.records.YarnClusterMetrics;
 import org.apache.hadoop.yarn.client.YarnClientImpl;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 
@@ -312,9 +312,9 @@ public class Client extends YarnClientImpl {
    * Main run function for the client
    * @return true if application completed successfully
    * @throws IOException
-   * @throws YarnRemoteException
+   * @throws YarnException
    */
-  public boolean run() throws IOException, YarnRemoteException {
+  public boolean run() throws IOException, YarnException {
 
     LOG.info("Running Client");
     start();
@@ -330,8 +330,7 @@ public class Client extends YarnClientImpl {
           + ", nodeId=" + node.getNodeId() 
           + ", nodeAddress" + node.getHttpAddress()
           + ", nodeRackName" + node.getRackName()
-          + ", nodeNumContainers" + node.getNumContainers()
-          + ", nodeHealthStatus" + node.getNodeHealthStatus());
+          + ", nodeNumContainers" + node.getNumContainers());
     }
 
     QueueInfo queueInfo = super.getQueueInfo(this.amQueue);		
@@ -591,11 +590,11 @@ public class Client extends YarnClientImpl {
    * Kill application if time expires. 
    * @param appId Application Id of application to be monitored
    * @return true if application completed successfully
-   * @throws YarnRemoteException
+   * @throws YarnException
    * @throws IOException
    */
   private boolean monitorApplication(ApplicationId appId)
-      throws YarnRemoteException, IOException {
+      throws YarnException, IOException {
 
     while (true) {
 
@@ -656,11 +655,11 @@ public class Client extends YarnClientImpl {
   /**
    * Kill a submitted application by sending a call to the ASM
    * @param appId Application Id to be killed. 
-   * @throws YarnRemoteException
+   * @throws YarnException
    * @throws IOException
    */
   private void forceKillApplication(ApplicationId appId)
-      throws YarnRemoteException, IOException {
+      throws YarnException, IOException {
     // TODO clarify whether multiple jobs with the same app id can be submitted and be running at 
     // the same time. 
     // If yes, can we kill a particular attempt only?
