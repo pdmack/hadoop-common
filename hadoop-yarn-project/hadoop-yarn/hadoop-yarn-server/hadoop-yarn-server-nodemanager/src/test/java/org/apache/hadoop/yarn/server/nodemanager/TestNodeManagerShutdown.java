@@ -44,27 +44,25 @@ import org.apache.hadoop.yarn.api.protocolrecords.GetContainerStatusRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
-import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
-import org.apache.hadoop.yarn.api.records.ContainerToken;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.api.records.URL;
-import org.apache.hadoop.yarn.api.records.impl.pb.ContainerPBImpl;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.event.Dispatcher;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.api.records.MasterKey;
-import org.apache.hadoop.yarn.util.BuilderUtils;
+import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -105,7 +103,7 @@ public class TestNodeManagerShutdown {
   
   @Test
   public void testKillContainersOnShutdown() throws IOException,
-      YarnRemoteException {
+      YarnException {
     NodeManager nm = new TestNodeManager();
     nm.init(createNMConfig());
     nm.start();
@@ -152,19 +150,15 @@ public class TestNodeManagerShutdown {
 
   public static void startContainer(NodeManager nm, ContainerId cId,
       FileContext localFS, File scriptFileDir, File processStartFile) 
-          throws IOException, YarnRemoteException {
+          throws IOException, YarnException {
     File scriptFile =
         createUnhaltingScriptFile(cId, scriptFileDir, processStartFile);
     
     ContainerLaunchContext containerLaunchContext =
         recordFactory.newRecordInstance(ContainerLaunchContext.class);
-    Container mockContainer = new ContainerPBImpl();
-    mockContainer.setId(cId);
 
     NodeId nodeId = BuilderUtils.newNodeId("localhost", 1234);
-    mockContainer.setNodeId(nodeId);
-    mockContainer.setNodeHttpAddress("localhost:12345");
-    
+ 
     URL localResourceUri =
         ConverterUtils.getYarnUrlFromPath(localFS
             .makeQualified(new Path(scriptFile.getAbsolutePath())));
@@ -183,16 +177,14 @@ public class TestNodeManagerShutdown {
     List<String> commands = Arrays.asList(Shell.getRunScriptCommand(scriptFile));
     containerLaunchContext.setCommands(commands);
     Resource resource = BuilderUtils.newResource(1024, 1);
-    mockContainer.setResource(resource);
-    ContainerToken containerToken =
+    Token containerToken =
         BuilderUtils.newContainerToken(cId, nodeId.getHost(), nodeId.getPort(),
           user, resource, System.currentTimeMillis() + 10000L, 123,
           "password".getBytes(), 0);
-    mockContainer.setContainerToken(containerToken);
     StartContainerRequest startRequest =
         recordFactory.newRecordInstance(StartContainerRequest.class);
     startRequest.setContainerLaunchContext(containerLaunchContext);
-    startRequest.setContainer(mockContainer);
+    startRequest.setContainerToken(containerToken);
     UserGroupInformation currentUser = UserGroupInformation
         .createRemoteUser(cId.toString());
 
@@ -219,16 +211,10 @@ public class TestNodeManagerShutdown {
   }
   
   public static ContainerId createContainerId() {
-    ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-    appId.setClusterTimestamp(0);
-    appId.setId(0);
-    ApplicationAttemptId appAttemptId = 
-        recordFactory.newRecordInstance(ApplicationAttemptId.class);
-    appAttemptId.setApplicationId(appId);
-    appAttemptId.setAttemptId(1);
-    ContainerId containerId = 
-        recordFactory.newRecordInstance(ContainerId.class);
-    containerId.setApplicationAttemptId(appAttemptId);
+    ApplicationId appId = ApplicationId.newInstance(0, 0);
+    ApplicationAttemptId appAttemptId =
+        ApplicationAttemptId.newInstance(appId, 1);
+    ContainerId containerId = ContainerId.newInstance(appAttemptId, 0);
     return containerId;
   }
   
@@ -271,7 +257,7 @@ public class TestNodeManagerShutdown {
     fileWriter.close();
     return scriptFile;
   }
-  
+
   class TestNodeManager extends NodeManager {
 
     @Override
