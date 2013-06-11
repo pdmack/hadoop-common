@@ -20,6 +20,7 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +60,8 @@ public class AppSchedulingInfo {
       new org.apache.hadoop.yarn.server.resourcemanager.resource.Priority.Comparator());
   final Map<Priority, Map<String, ResourceRequest>> requests = 
     new HashMap<Priority, Map<String, ResourceRequest>>();
-
+  final Set<String> blacklist = new HashSet<String>();
+  
   //private final ApplicationStore store;
   private final ActiveUsersManager activeUsersManager;
   
@@ -114,20 +116,23 @@ public class AppSchedulingInfo {
    * application, by asking for more resources and releasing resources acquired
    * by the application.
    * 
-   * @param requests
-   *          resources to be acquired
+   * @param requests resources to be acquired
+   * @param blacklistAdditions resources to be added to the blacklist
+   * @param blacklistRemovals resources to be removed from the blacklist
    */
   synchronized public void updateResourceRequests(
-      List<ResourceRequest> requests) {
+      List<ResourceRequest> requests,
+      List<String> blacklistAdditions, List<String> blacklistRemovals) {
     QueueMetrics metrics = queue.getMetrics();
+    
     // Update resource requests
     for (ResourceRequest request : requests) {
       Priority priority = request.getPriority();
-      String hostName = request.getHostName();
+      String resourceName = request.getResourceName();
       boolean updatePendingResources = false;
       ResourceRequest lastRequest = null;
 
-      if (hostName.equals(ResourceRequest.ANY)) {
+      if (resourceName.equals(ResourceRequest.ANY)) {
         if (LOG.isDebugEnabled()) {
           LOG.debug("update:" + " application=" + applicationId + " request="
               + request);
@@ -152,10 +157,10 @@ public class AppSchedulingInfo {
         this.requests.put(priority, asks);
         this.priorities.add(priority);
       } else if (updatePendingResources) {
-        lastRequest = asks.get(hostName);
+        lastRequest = asks.get(resourceName);
       }
 
-      asks.put(hostName, request);
+      asks.put(resourceName, request);
       if (updatePendingResources) {
         
         // Similarly, deactivate application?
@@ -175,6 +180,20 @@ public class AppSchedulingInfo {
                 lastRequestContainers)));
       }
     }
+
+    //
+    // Update blacklist
+    //
+    
+    // Add to blacklist
+    if (blacklistAdditions != null) {
+      blacklist.addAll(blacklistAdditions);
+    }
+
+    // Remove from blacklist
+    if (blacklistRemovals != null) {
+      blacklist.removeAll(blacklistRemovals);
+    }
   }
 
   synchronized public Collection<Priority> getPriorities() {
@@ -187,9 +206,9 @@ public class AppSchedulingInfo {
   }
 
   synchronized public ResourceRequest getResourceRequest(Priority priority,
-      String nodeAddress) {
+      String resourceName) {
     Map<String, ResourceRequest> nodeRequests = requests.get(priority);
-    return (nodeRequests == null) ? null : nodeRequests.get(nodeAddress);
+    return (nodeRequests == null) ? null : nodeRequests.get(resourceName);
   }
 
   public synchronized Resource getResource(Priority priority) {
@@ -197,6 +216,10 @@ public class AppSchedulingInfo {
     return request.getCapability();
   }
 
+  public synchronized boolean isBlacklisted(String resourceName) {
+    return blacklist.contains(resourceName);
+  }
+  
   /**
    * Resources have been allocated to this application by the resource
    * scheduler. Track them.

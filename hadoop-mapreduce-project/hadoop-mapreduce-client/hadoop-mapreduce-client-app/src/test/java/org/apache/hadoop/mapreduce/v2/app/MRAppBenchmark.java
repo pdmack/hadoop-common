@@ -33,7 +33,7 @@ import org.apache.hadoop.mapreduce.v2.app.job.event.TaskAttemptContainerAssigned
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocator;
 import org.apache.hadoop.mapreduce.v2.app.rm.ContainerAllocatorEvent;
 import org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator;
-import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.YarnRuntimeException;
 import org.apache.hadoop.yarn.api.AMRMProtocol;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
@@ -126,7 +126,7 @@ public class MRAppBenchmark {
         try {
           eventQueue.put(event);
         } catch (InterruptedException e) {
-          throw new YarnException(e);
+          throw new YarnRuntimeException(e);
         }
       }
       @Override
@@ -139,19 +139,16 @@ public class MRAppBenchmark {
               try {
                 if (concurrentRunningTasks < maxConcurrentRunningTasks) {
                   event = eventQueue.take();
-                  ContainerId cId = 
-                      recordFactory.newRecordInstance(ContainerId.class);
-                  cId.setApplicationAttemptId(
-                      getContext().getApplicationAttemptId());
-                  cId.setId(containerCount++);
+                  ContainerId cId =
+                      ContainerId.newInstance(getContext()
+                        .getApplicationAttemptId(), containerCount++);
+
                   //System.out.println("Allocating " + containerCount);
                   
                   Container container = 
                       recordFactory.newRecordInstance(Container.class);
                   container.setId(cId);
-                  NodeId nodeId = recordFactory.newRecordInstance(NodeId.class);
-                  nodeId.setHost("dummy");
-                  nodeId.setPort(1234);
+                  NodeId nodeId = NodeId.newInstance("dummy", 1234);
                   container.setNodeId(nodeId);
                   container.setContainerToken(null);
                   container.setNodeHttpAddress("localhost:8042");
@@ -230,7 +227,7 @@ public class MRAppBenchmark {
                 List<ResourceRequest> askList = request.getAskList();
                 List<Container> containers = new ArrayList<Container>();
                 for (ResourceRequest req : askList) {
-                  if (!ResourceRequest.isAnyLocation(req.getHostName())) {
+                  if (!ResourceRequest.isAnyLocation(req.getResourceName())) {
                     continue;
                   }
                   int numContainers = req.getNumContainers();
