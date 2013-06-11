@@ -113,7 +113,7 @@ public class DatanodeManager {
       = new TreeMap<String, DatanodeDescriptor>();
 
   /** Cluster network topology */
-  private final NetworkTopology networktopology = new NetworkTopology();
+  private final NetworkTopology networktopology;
 
   /** Host names to datanode descriptors mapping. */
   private final Host2NodesMap host2DatanodeMap = new Host2NodesMap();
@@ -161,6 +161,8 @@ public class DatanodeManager {
       final Configuration conf) throws IOException {
     this.namesystem = namesystem;
     this.blockManager = blockManager;
+    
+    networktopology = NetworkTopology.getInstance(conf);
 
     this.heartbeatManager = new HeartbeatManager(namesystem, blockManager, conf);
 
@@ -291,7 +293,16 @@ public class DatanodeManager {
   public void sortLocatedBlocks(final String targethost,
       final List<LocatedBlock> locatedblocks) {
     //sort the blocks
-    final DatanodeDescriptor client = getDatanodeByHost(targethost);
+    // As it is possible for the separation of node manager and datanode, 
+    // here we should get node but not datanode only .
+    Node client = getDatanodeByHost(targethost);
+    if (client == null) {
+      List<String> hosts = new ArrayList<String> (1);
+      hosts.add(targethost);
+      String rName = dnsToSwitchMapping.resolve(hosts).get(0);
+      if (rName != null)
+        client = new NodeBase(rName + NodeBase.PATH_SEPARATOR_STR + targethost);
+    }
     
     Comparator<DatanodeInfo> comparator = avoidStaleDataNodesForRead ?
         new DFSUtil.DecomStaleComparator(staleInterval) : 
@@ -301,7 +312,7 @@ public class DatanodeManager {
       networktopology.pseudoSortByDistance(client, b.getLocations());
       // Move decommissioned/stale datanodes to the bottom
       Arrays.sort(b.getLocations(), comparator);
-    }    
+    }
   }
   
   CyclicIteration<String, DatanodeDescriptor> getDatanodeCyclicIteration(
@@ -1179,7 +1190,13 @@ public class DatanodeManager {
 
         heartbeatManager.updateHeartbeat(nodeinfo, capacity, dfsUsed,
             remaining, blockPoolUsed, xceiverCount, failedVolumes);
-        
+
+        // If we are in safemode, do not send back any recovery / replication
+        // requests. Don't even drain the existing queue of work.
+        if(namesystem.isInSafeMode()) {
+          return new DatanodeCommand[0];
+        }
+
         //check lease recovery
         BlockInfoUnderConstruction[] blocks = nodeinfo
             .getLeaseRecoveryCommand(Integer.MAX_VALUE);
