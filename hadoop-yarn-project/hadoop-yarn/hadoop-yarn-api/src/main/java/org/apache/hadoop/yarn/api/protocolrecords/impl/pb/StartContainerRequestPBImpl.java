@@ -19,27 +19,26 @@
 package org.apache.hadoop.yarn.api.protocolrecords.impl.pb;
 
 
+import org.apache.hadoop.security.proto.SecurityProtos.TokenProto;
 import org.apache.hadoop.yarn.api.protocolrecords.StartContainerRequest;
-import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
-import org.apache.hadoop.yarn.api.records.ProtoBase;
+import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.api.records.impl.pb.ContainerLaunchContextPBImpl;
-import org.apache.hadoop.yarn.api.records.impl.pb.ContainerPBImpl;
+import org.apache.hadoop.yarn.api.records.impl.pb.TokenPBImpl;
 import org.apache.hadoop.yarn.proto.YarnProtos.ContainerLaunchContextProto;
-import org.apache.hadoop.yarn.proto.YarnProtos.ContainerProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.StartContainerRequestProto;
 import org.apache.hadoop.yarn.proto.YarnServiceProtos.StartContainerRequestProtoOrBuilder;
 
 
     
-public class StartContainerRequestPBImpl extends ProtoBase<StartContainerRequestProto> implements StartContainerRequest {
+public class StartContainerRequestPBImpl extends StartContainerRequest {
   StartContainerRequestProto proto = StartContainerRequestProto.getDefaultInstance();
   StartContainerRequestProto.Builder builder = null;
   boolean viaProto = false;
   
   private ContainerLaunchContext containerLaunchContext = null;
 
-  private Container container = null;
+  private Token containerToken = null;
   
   public StartContainerRequestPBImpl() {
     builder = StartContainerRequestProto.newBuilder();
@@ -57,12 +56,32 @@ public class StartContainerRequestPBImpl extends ProtoBase<StartContainerRequest
     return proto;
   }
 
+  @Override
+  public int hashCode() {
+    return getProto().hashCode();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (other == null)
+      return false;
+    if (other.getClass().isAssignableFrom(this.getClass())) {
+      return this.getProto().equals(this.getClass().cast(other).getProto());
+    }
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return getProto().toString().replaceAll("\\n", ", ").replaceAll("\\s+", " ");
+  }
+
   private void mergeLocalToBuilder() {
     if (this.containerLaunchContext != null) {
       builder.setContainerLaunchContext(convertToProtoFormat(this.containerLaunchContext));
     }
-    if(this.container != null) {
-      builder.setContainer(convertToProtoFormat(this.container));
+    if(this.containerToken != null) {
+      builder.setContainerToken(convertToProtoFormat(this.containerToken));
     }
   }
 
@@ -104,25 +123,25 @@ public class StartContainerRequestPBImpl extends ProtoBase<StartContainerRequest
   }
 
   @Override
-  public Container getContainer() {
+  public Token getContainerToken() {
     StartContainerRequestProtoOrBuilder p = viaProto ? proto : builder;
-    if (this.container != null) {
-      return this.container;
+    if (this.containerToken != null) {
+      return this.containerToken;
     }
-    if (!p.hasContainer()) {
+    if (!p.hasContainerToken()) {
       return null;
     }
-    this.container = convertFromProtoFormat(p.getContainer());
-    return this.container;
+    this.containerToken = convertFromProtoFormat(p.getContainerToken());
+    return this.containerToken;
   }
 
   @Override
-  public void setContainer(Container container) {
+  public void setContainerToken(Token containerToken) {
     maybeInitBuilder();
-    if(container == null) {
-      builder.clearContainer();
+    if(containerToken == null) {
+      builder.clearContainerToken();
     }
-    this.container = container;
+    this.containerToken = containerToken;
   }
 
   private ContainerLaunchContextPBImpl convertFromProtoFormat(ContainerLaunchContextProto p) {
@@ -135,11 +154,11 @@ public class StartContainerRequestPBImpl extends ProtoBase<StartContainerRequest
 
 
 
-  private ContainerPBImpl convertFromProtoFormat(ContainerProto containerProto) {
-    return new ContainerPBImpl(containerProto);
+  private TokenPBImpl convertFromProtoFormat(TokenProto containerProto) {
+    return new TokenPBImpl(containerProto);
   }
 
-  private ContainerProto convertToProtoFormat(Container container) {
-    return ((ContainerPBImpl)container).getProto();
+  private TokenProto convertToProtoFormat(Token container) {
+    return ((TokenPBImpl)container).getProto();
   }
 }  
