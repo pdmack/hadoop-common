@@ -1,6 +1,30 @@
 Hadoop YARN Change Log
 
-Release 2.0.5-beta - UNRELEASED
+Release 2.3.0 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
+Release 2.2.0 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
+Release 2.1.0-beta - UNRELEASED
 
   INCOMPATIBLE CHANGES
 
@@ -52,6 +76,42 @@ Release 2.0.5-beta - UNRELEASED
     YARN-571. Remove user from ContainerLaunchContext. (Omkar Vinit Joshi via
     vinodkv)
 
+    YARN-716. Making ApplicationID immutable. (Siddharth Seth via vinodkv)
+
+    YARN-684. ContainerManager.startContainer should use
+    ContainerTokenIdentifier instead of the entire Container.
+    (Vinod Kumar Vavilapalli via sseth)
+
+    YARN-735. Make ApplicationAttemptId, ContaienrId and NodeId immutable.
+    (Jian He via sseth)
+
+    YARN-749. Rename ResourceRequest.(get,set)HostName to
+    ResourceRequest.(get,set)ResourceName. (acmurthy)
+
+    YARN-720. container-log4j.properties should not refer to mapreduce
+    property names. (Zhijie Shen via sseth)
+
+    YARN-748. Moved BuilderUtils from yarn-common to yarn-server-common for
+    eventual retirement. (Jian He via vinodkv)
+
+    YARN-635. Renamed YarnRemoteException to YarnException. (Siddharth Seth via
+    vinodkv)
+
+    YARN-755. Renamed AllocateResponse.reboot to AllocateResponse.resync. (Bikas
+    Saha via vinodkv)
+
+    YARN-753. Added individual factory methods for all api protocol records and
+    converted the records to be abstract classes. (Jian He via vinodkv)
+
+    YARN-724. Moved ProtoBase from api.records to api.records.impl.pb. (Jian He
+    via vinodkv)
+
+    YARN-777. Removed unreferenced objects from .proto files. (Jian He via
+    vinodkv) 
+
+    YARN-642. Removed health parameter from ResourceManager /nodes web-service
+    and cleaned the behaviour of the status parameter. (Sandy Ryza vid vinodkv)
+
   NEW FEATURES
 
     YARN-482. FS: Extend SchedulingMode to intermediate queues. 
@@ -69,6 +129,15 @@ Release 2.0.5-beta - UNRELEASED
 
     YARN-422. Add a NM Client library to help application-writers. (Zhijie Shen
     via vinodkv)
+
+    YARN-392. Make it possible to specify hard locality constraints in resource
+    requests. (sandyr via tucu)
+
+    YARN-326. Add multi-resource scheduling to the fair scheduler. 
+    (sandyr via tucu)
+
+    YARN-398. Make it possible to specify hard locality constraints in resource
+    requests for CapacityScheduler. (acmurthy)
 
   IMPROVEMENTS
 
@@ -206,6 +275,19 @@ Release 2.0.5-beta - UNRELEASED
 
     YARN-638. Modified ResourceManager to restore RMDelegationTokens after
     restarting. (Jian He via vinodkv)
+
+    YARN-660. Improve AMRMClient with matching requests (bikas)
+
+    YARN-717. Put object creation factories for Token in the class itself and
+    remove useless derivations for specific tokens. (Jian He via vinodkv)
+
+    YARN-756. Move Preemption* records to yarn.api where they really belong.
+    (Jian He via vinodkv)
+
+    YARN-750. Allow for black-listing resources in YARN API and Impl in CS
+    (acmurthy via bikas)
+
+    YARN-686. Flatten NodeReport. (sandyr via tucu)
 
   OPTIMIZATIONS
 
@@ -360,6 +442,29 @@ Release 2.0.5-beta - UNRELEASED
     YARN-578. Fixed NM to use SecureIOUtils for reading and aggregating logs.
     (Omkar Vinit Joshi via vinodkv) 
 
+    YARN-733. Fixed TestNMClient from failing occasionally. (Zhijie Shen via
+    vinodkv)
+
+    YARN-730. Fix NMClientAsync to remove completed containers. (Zhijie Shen
+    via acmurthy)
+
+    YARN-726. Fix queue & finish time fields in web-ui for ResourceManager.
+    (Mayank Bansal via acmurthy) 
+
+    YARN-757. Changed TestRMRestart to use the default scheduler to avoid test
+    failures. (Bikas Saha via vinodkv)
+
+    YARN-742. Log aggregation causes a lot of redundant setPermission calls.
+    (jlowe via kihwal)
+
+    YARN-764. blank Used Resources on Capacity Scheduler page (Nemon Lou via
+    tgraves)
+
+    YARN-761. TestNMClientAsync fails sometimes (Zhijie Shen via bikas)
+
+    YARN-760. NodeManager throws AvroRuntimeException on failed start.
+    (Niranjan Singh via jlowe)
+
   BREAKDOWN OF HADOOP-8562 SUBTASKS AND RELATED JIRAS
 
     YARN-158. Yarn creating package-info.java must not depend on sh.
@@ -409,6 +514,18 @@ Release 2.0.5-beta - UNRELEASED
 
     YARN-493. Fixed some shell related flaws in YARN on Windows. (Chris Nauroth
     via vinodkv)
+
+Release 2.0.5-alpha - 06/06/2013
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
 
 Release 2.0.4-alpha - 2013-04-25 
 
@@ -688,7 +805,19 @@ Release 2.0.2-alpha - 2012-09-07
     YARN-138. Ensure default values for minimum/maximum container sizes is
     sane. (harsh & sseth via acmurthy)
 
-Release 0.23.8 - UNRELEASED
+Release 0.23.9 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
+Release 0.23.8 - 2013-06-05
 
   INCOMPATIBLE CHANGES
 
@@ -708,7 +837,7 @@ Release 0.23.8 - UNRELEASED
 
     YARN-690. RM exits on token cancel/renew problems (daryn via bobby)
 
-Release 0.23.7 - UNRELEASED
+Release 0.23.7 - 2013-04-18
 
   INCOMPATIBLE CHANGES
 
@@ -775,7 +904,7 @@ Release 0.23.7 - UNRELEASED
     YARN-460. CS user left in list of active users for the queue even when 
     application finished (tgraves)
 
-Release 0.23.6 - UNRELEASED
+Release 0.23.6 - 2013-02-06
 
   INCOMPATIBLE CHANGES
 

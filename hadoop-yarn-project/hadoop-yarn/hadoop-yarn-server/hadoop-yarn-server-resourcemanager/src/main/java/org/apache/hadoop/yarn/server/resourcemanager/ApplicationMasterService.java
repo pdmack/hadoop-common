@@ -41,21 +41,23 @@ import org.apache.hadoop.yarn.api.protocolrecords.AllocateRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.AllocateResponse;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.FinishApplicationMasterResponse;
-import org.apache.hadoop.yarn.api.protocolrecords.PreemptionContainer;
-import org.apache.hadoop.yarn.api.protocolrecords.PreemptionContract;
-import org.apache.hadoop.yarn.api.protocolrecords.PreemptionResourceRequest;
-import org.apache.hadoop.yarn.api.protocolrecords.StrictPreemptionContract;
-import org.apache.hadoop.yarn.api.protocolrecords.PreemptionMessage;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterRequest;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
+import org.apache.hadoop.yarn.api.records.AMCommand;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.NodeReport;
+import org.apache.hadoop.yarn.api.records.PreemptionContainer;
+import org.apache.hadoop.yarn.api.records.PreemptionContract;
+import org.apache.hadoop.yarn.api.records.PreemptionMessage;
+import org.apache.hadoop.yarn.api.records.PreemptionResourceRequest;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.ResourceBlacklistRequest;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.api.records.StrictPreemptionContract;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.exceptions.YarnRemoteException;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.ipc.RPCUtil;
@@ -69,13 +71,14 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.event.RMAppAt
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.event.RMAppAttemptUnregistrationEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Allocation;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.InvalidResourceBlacklistRequestException;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.InvalidResourceRequestException;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerNodeReport;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerUtils;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.YarnScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.security.authorize.RMPolicyProvider;
+import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 
 @SuppressWarnings("unchecked")
 @Private
@@ -90,7 +93,7 @@ public class ApplicationMasterService extends AbstractService implements
       RecordFactoryProvider.getRecordFactory(null);
   private final ConcurrentMap<ApplicationAttemptId, AllocateResponse> responseMap =
       new ConcurrentHashMap<ApplicationAttemptId, AllocateResponse>();
-  private final AllocateResponse reboot =
+  private final AllocateResponse resync =
       recordFactory.newRecordInstance(AllocateResponse.class);
   private final RMContext rmContext;
 
@@ -98,7 +101,7 @@ public class ApplicationMasterService extends AbstractService implements
     super(ApplicationMasterService.class.getName());
     this.amLivelinessMonitor = rmContext.getAMLivelinessMonitor();
     this.rScheduler = scheduler;
-    this.reboot.setReboot(true);
+    this.resync.setAMCommand(AMCommand.AM_RESYNC);
 //    this.reboot.containers = new ArrayList<Container>();
     this.rmContext = rmContext;
   }
@@ -139,7 +142,7 @@ public class ApplicationMasterService extends AbstractService implements
   }
 
   private void authorizeRequest(ApplicationAttemptId appAttemptID)
-      throws YarnRemoteException {
+      throws YarnException {
 
     if (!UserGroupInformation.isSecurityEnabled()) {
       return;
@@ -169,7 +172,7 @@ public class ApplicationMasterService extends AbstractService implements
 
   @Override
   public RegisterApplicationMasterResponse registerApplicationMaster(
-      RegisterApplicationMasterRequest request) throws YarnRemoteException,
+      RegisterApplicationMasterRequest request) throws YarnException,
       IOException {
 
     ApplicationAttemptId applicationAttemptId = request
@@ -219,7 +222,7 @@ public class ApplicationMasterService extends AbstractService implements
 
   @Override
   public FinishApplicationMasterResponse finishApplicationMaster(
-      FinishApplicationMasterRequest request) throws YarnRemoteException,
+      FinishApplicationMasterRequest request) throws YarnException,
       IOException {
 
     ApplicationAttemptId applicationAttemptId = request
@@ -252,7 +255,7 @@ public class ApplicationMasterService extends AbstractService implements
 
   @Override
   public AllocateResponse allocate(AllocateRequest request)
-      throws YarnRemoteException, IOException {
+      throws YarnException, IOException {
 
     ApplicationAttemptId appAttemptId = request.getApplicationAttemptId();
     authorizeRequest(appAttemptId);
@@ -263,7 +266,7 @@ public class ApplicationMasterService extends AbstractService implements
     AllocateResponse lastResponse = responseMap.get(appAttemptId);
     if (lastResponse == null) {
       LOG.error("AppAttemptId doesnt exist in cache " + appAttemptId);
-      return reboot;
+      return resync;
     }
     if ((request.getResponseId() + 1) == lastResponse.getResponseId()) {
       /* old heartbeat */
@@ -273,7 +276,7 @@ public class ApplicationMasterService extends AbstractService implements
       // Oh damn! Sending reboot isn't enough. RM state is corrupted. TODO:
       // Reboot is not useful since after AM reboots, it will send register and 
       // get an exception. Might as well throw an exception here.
-      return reboot;
+      return resync;
     } 
     
     // Allow only one thread in AM to do heartbeat at a time.
@@ -286,18 +289,35 @@ public class ApplicationMasterService extends AbstractService implements
 
       List<ResourceRequest> ask = request.getAskList();
       List<ContainerId> release = request.getReleaseList();
-
+      
+      ResourceBlacklistRequest blacklistRequest = request.getResourceBlacklistRequest();
+      List<String> blacklistAdditions = 
+          (blacklistRequest != null) ? 
+              blacklistRequest.getBlacklistAdditions() : null;
+      List<String> blacklistRemovals = 
+          (blacklistRequest != null) ? 
+              blacklistRequest.getBlacklistRemovals() : null;
+      
       // sanity check
       try {
         SchedulerUtils.validateResourceRequests(ask,
             rScheduler.getMaximumResourceCapability());
       } catch (InvalidResourceRequestException e) {
         LOG.warn("Invalid resource ask by application " + appAttemptId, e);
-        throw RPCUtil.getRemoteException(e);
+        throw e;
       }
+      
+      try {
+        SchedulerUtils.validateBlacklistRequest(blacklistRequest);
+      }  catch (InvalidResourceBlacklistRequestException e) {
+        LOG.warn("Invalid blacklist request by application " + appAttemptId, e);
+        throw e;
+      }
+      
       // Send new requests to appAttempt.
       Allocation allocation =
-          this.rScheduler.allocate(appAttemptId, ask, release);
+          this.rScheduler.allocate(appAttemptId, ask, release, 
+              blacklistAdditions, blacklistRemovals);
 
       RMApp app = this.rmContext.getRMApps().get(
           appAttemptId.getApplicationId());
@@ -323,7 +343,8 @@ public class ApplicationMasterService extends AbstractService implements
               rmNode.getState(),
               rmNode.getHttpAddress(), rmNode.getRackName(), used,
               rmNode.getTotalCapability(), numContainers,
-              rmNode.getNodeHealthStatus());
+              rmNode.getHealthReport(),
+              rmNode.getLastHealthReportTime());
           
           updatedNodeReports.add(report);
         }
@@ -344,7 +365,7 @@ public class ApplicationMasterService extends AbstractService implements
         String message = "App Attempt removed from the cache during allocate"
             + appAttemptId;
         LOG.error(message);
-        return reboot;
+        return resync;
       }
       
       allocateResponse.setNumClusterNodes(this.rScheduler.getNumClusterNodes());

@@ -49,14 +49,13 @@ import org.apache.hadoop.mapreduce.v2.app.rm.RMHeartbeatHandler;
 import org.apache.hadoop.mapreduce.v2.util.MRApps;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.yarn.YarnException;
+import org.apache.hadoop.yarn.YarnRuntimeException;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
 import org.apache.hadoop.yarn.service.AbstractService;
-import org.apache.hadoop.yarn.util.BuilderUtils;
 import org.junit.Test;
 
 
@@ -81,13 +80,9 @@ import org.junit.Test;
      String user = UserGroupInformation.getCurrentUser().getShortUserName();
      Path stagingDir = MRApps.getStagingAreaDir(conf, user);
      when(fs.exists(stagingDir)).thenReturn(true);
-     ApplicationAttemptId attemptId = recordFactory.newRecordInstance(
-         ApplicationAttemptId.class);
-     attemptId.setAttemptId(0);
-     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-     appId.setClusterTimestamp(System.currentTimeMillis());
-     appId.setId(0);
-     attemptId.setApplicationId(appId);
+     ApplicationId appId = ApplicationId.newInstance(System.currentTimeMillis(),
+        0);
+     ApplicationAttemptId attemptId = ApplicationAttemptId.newInstance(appId, 0);
      JobId jobid = recordFactory.newRecordInstance(JobId.class);
      jobid.setAppId(appId);
      ContainerAllocator mockAlloc = mock(ContainerAllocator.class);
@@ -110,13 +105,9 @@ import org.junit.Test;
      String user = UserGroupInformation.getCurrentUser().getShortUserName();
      Path stagingDir = MRApps.getStagingAreaDir(conf, user);
      when(fs.exists(stagingDir)).thenReturn(true);
-     ApplicationAttemptId attemptId = recordFactory.newRecordInstance(
-         ApplicationAttemptId.class);
-     attemptId.setAttemptId(0);
-     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-     appId.setClusterTimestamp(System.currentTimeMillis());
-     appId.setId(0);
-     attemptId.setApplicationId(appId);
+     ApplicationId appId = ApplicationId.newInstance(System.currentTimeMillis(),
+         0);
+     ApplicationAttemptId attemptId = ApplicationAttemptId.newInstance(appId, 0);
      ContainerAllocator mockAlloc = mock(ContainerAllocator.class);
      Assert.assertTrue(MRJobConfig.DEFAULT_MR_AM_MAX_ATTEMPTS > 1);
      MRAppMaster appMaster = new TestMRApp(attemptId, mockAlloc,
@@ -138,13 +129,9 @@ import org.junit.Test;
      String user = UserGroupInformation.getCurrentUser().getShortUserName();
      Path stagingDir = MRApps.getStagingAreaDir(conf, user);
      when(fs.exists(stagingDir)).thenReturn(true);
-     ApplicationAttemptId attemptId = recordFactory.newRecordInstance(
-         ApplicationAttemptId.class);
-     attemptId.setAttemptId(1);
-     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-     appId.setClusterTimestamp(System.currentTimeMillis());
-     appId.setId(0);
-     attemptId.setApplicationId(appId);
+     ApplicationId appId = ApplicationId.newInstance(System.currentTimeMillis(),
+         0);
+     ApplicationAttemptId attemptId = ApplicationAttemptId.newInstance(appId, 1);
      ContainerAllocator mockAlloc = mock(ContainerAllocator.class);
      MRAppMaster appMaster = new TestMRApp(attemptId, mockAlloc,
          JobStateInternal.REBOOT, 1); //no retry
@@ -166,13 +153,9 @@ import org.junit.Test;
      String user = UserGroupInformation.getCurrentUser().getShortUserName();
      Path stagingDir = MRApps.getStagingAreaDir(conf, user);
      when(fs.exists(stagingDir)).thenReturn(true);
-     ApplicationAttemptId attemptId = recordFactory.newRecordInstance(
-         ApplicationAttemptId.class);
-     attemptId.setAttemptId(0);
-     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-     appId.setClusterTimestamp(System.currentTimeMillis());
-     appId.setId(0);
-     attemptId.setApplicationId(appId);
+     ApplicationId appId = ApplicationId.newInstance(System.currentTimeMillis(),
+         0);
+     ApplicationAttemptId attemptId = ApplicationAttemptId.newInstance(appId, 0);
      JobId jobid = recordFactory.newRecordInstance(JobId.class);
      jobid.setAppId(appId);
      ContainerAllocator mockAlloc = mock(ContainerAllocator.class);
@@ -194,13 +177,9 @@ import org.junit.Test;
      String user = UserGroupInformation.getCurrentUser().getShortUserName();
      Path stagingDir = MRApps.getStagingAreaDir(conf, user);
      when(fs.exists(stagingDir)).thenReturn(true);
-     ApplicationAttemptId attemptId = recordFactory.newRecordInstance(
-         ApplicationAttemptId.class);
-     attemptId.setAttemptId(1);
-     ApplicationId appId = recordFactory.newRecordInstance(ApplicationId.class);
-     appId.setClusterTimestamp(System.currentTimeMillis());
-     appId.setId(0);
-     attemptId.setApplicationId(appId);
+     ApplicationId appId = ApplicationId.newInstance(System.currentTimeMillis(),
+         0);
+     ApplicationAttemptId attemptId = ApplicationAttemptId.newInstance(appId, 1);
      JobId jobid = recordFactory.newRecordInstance(JobId.class);
      jobid.setAppId(appId);
      ContainerAllocator mockAlloc = mock(ContainerAllocator.class);
@@ -313,7 +292,7 @@ import org.junit.Test;
       try {
         currentUser = UserGroupInformation.getCurrentUser();
       } catch (IOException e) {
-        throw new YarnException(e);
+        throw new YarnRuntimeException(e);
       }
       Job newJob = new TestJob(getJobId(), getAttemptID(), conf,
           getDispatcher().getEventHandler(),
