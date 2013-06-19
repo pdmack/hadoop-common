@@ -37,6 +37,7 @@ import junit.framework.Assert;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
@@ -56,11 +57,10 @@ import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.Token;
 import org.apache.hadoop.yarn.api.records.URL;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.security.ContainerTokenIdentifier;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.ExitCode;
-import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor.Signal;
 import org.apache.hadoop.yarn.server.nodemanager.DefaultContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.BaseContainerManagerTest;
-import org.apache.hadoop.yarn.server.nodemanager.containermanager.launcher.ContainerLaunch;
 import org.apache.hadoop.yarn.server.nodemanager.containermanager.localizer.ContainerLocalizer;
 import org.apache.hadoop.yarn.server.utils.BuilderUtils;
 import org.apache.hadoop.yarn.util.ConverterUtils;
@@ -159,7 +159,7 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
   public void testContainerEnvVariables() throws Exception {
     containerManager.start();
 
-    ContainerLaunchContext containerLaunchContext = 
+    ContainerLaunchContext containerLaunchContext =
         recordFactory.newRecordInstance(ContainerLaunchContext.class);
 
     // ////// Construct the Container-id
@@ -177,7 +177,7 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
     userSetEnv.put(Environment.LOCAL_DIRS.name(), "user_set_LOCAL_DIR");
     containerLaunchContext.setEnvironment(userSetEnv);
 
-    File scriptFile = new File(tmpDir, "scriptFile.sh");
+    File scriptFile = Shell.appendScriptExtension(tmpDir, "scriptFile");
     PrintWriter fileWriter = new PrintWriter(scriptFile);
     File processStartFile =
         new File(tmpDir, "env_vars.txt").getAbsoluteFile();
@@ -192,6 +192,7 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
           + processStartFile);
       fileWriter.println("@echo " + Environment.LOCAL_DIRS.$() + ">> "
           + processStartFile);
+      fileWriter.println("@echo " + cId + ">> " + processStartFile);
       fileWriter.println("@ping -n 100 127.0.0.1 >nul");
     } else {
       fileWriter.write("\numask 0"); // So that start file is readable by the test
@@ -230,14 +231,9 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
     // set up the rest of the container
     List<String> commands = Arrays.asList(Shell.getRunScriptCommand(scriptFile));
     containerLaunchContext.setCommands(commands);
-    Resource r = BuilderUtils.newResource(1024, 1);
     StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
     startRequest.setContainerLaunchContext(containerLaunchContext);
-    Token containerToken =
-        BuilderUtils.newContainerToken(cId, context.getNodeId().getHost(),
-          port, user, r, System.currentTimeMillis() + 10000L, 1234,
-          "password".getBytes(), super.DUMMY_RM_IDENTIFIER);
-    startRequest.setContainerToken(containerToken);
+    startRequest.setContainerToken(createContainerToken(cId));
     containerManager.startContainer(startRequest);
 
     int timeoutSecs = 0;
@@ -250,12 +246,20 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
 
     // Now verify the contents of the file
     List<String> localDirs = dirsHandler.getLocalDirs();
+    List<String> logDirs = dirsHandler.getLogDirs();
+
     List<Path> appDirs = new ArrayList<Path>(localDirs.size());
     for (String localDir : localDirs) {
       Path usersdir = new Path(localDir, ContainerLocalizer.USERCACHE);
       Path userdir = new Path(usersdir, user);
       Path appsdir = new Path(userdir, ContainerLocalizer.APPCACHE);
       appDirs.add(new Path(appsdir, appId.toString()));
+    }
+    List<String> containerLogDirs = new ArrayList<String>();
+    String relativeContainerLogDir = ContainerLaunch
+        .getRelativeContainerLogDir(appId.toString(), cId.toString());
+    for(String logDir : logDirs){
+      containerLogDirs.add(logDir + Path.SEPARATOR + relativeContainerLogDir);
     }
     BufferedReader reader =
         new BufferedReader(new FileReader(processStartFile));
@@ -276,6 +280,9 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
       .getEnvironment().get(Environment.NM_HTTP_PORT.name()));
     Assert.assertEquals(StringUtils.join(",", appDirs), containerLaunchContext
         .getEnvironment().get(Environment.LOCAL_DIRS.name()));
+    Assert.assertEquals(StringUtils.join(",", containerLogDirs),
+      containerLaunchContext.getEnvironment().get(Environment.LOG_DIRS.name()));
+
     // Get the pid of the process
     String pid = reader.readLine().trim();
     // No more lines
@@ -368,12 +375,9 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
     // set up the rest of the container
     List<String> commands = Arrays.asList(Shell.getRunScriptCommand(scriptFile));
     containerLaunchContext.setCommands(commands);
-    Resource r = BuilderUtils.newResource(1024, 1);
-    Token containerToken =
-        BuilderUtils.newContainerToken(cId, context.getNodeId().getHost(),
-          port, user, r, System.currentTimeMillis() + 10000L, 123,
-          "password".getBytes(), super.DUMMY_RM_IDENTIFIER);
-    StartContainerRequest startRequest = recordFactory.newRecordInstance(StartContainerRequest.class);
+    Token containerToken = createContainerToken(cId);
+    StartContainerRequest startRequest =
+        recordFactory.newRecordInstance(StartContainerRequest.class);
     startRequest.setContainerLaunchContext(containerLaunchContext);
     startRequest.setContainerToken(containerToken);
     containerManager.startContainer(startRequest);
@@ -429,6 +433,19 @@ public class TestContainerLaunch extends BaseContainerManagerTest {
       Assert.assertTrue("Did not find sigterm message", foundSigTermMessage);
       reader.close();
     }
+  }
+
+  protected Token createContainerToken(ContainerId cId) throws InvalidToken {
+    Resource r = BuilderUtils.newResource(1024, 1);
+    ContainerTokenIdentifier containerTokenIdentifier =
+        new ContainerTokenIdentifier(cId, context.getNodeId().toString(), user,
+          r, System.currentTimeMillis() + 10000L, 123, DUMMY_RM_IDENTIFIER);
+    Token containerToken =
+        BuilderUtils.newContainerToken(
+          context.getNodeId(),
+          context.getContainerTokenSecretManager().retrievePassword(
+            containerTokenIdentifier), containerTokenIdentifier);
+    return containerToken;
   }
 
 }
