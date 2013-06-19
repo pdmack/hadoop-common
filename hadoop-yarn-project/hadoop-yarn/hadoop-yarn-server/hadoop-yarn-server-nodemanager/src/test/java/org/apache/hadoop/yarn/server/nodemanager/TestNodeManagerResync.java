@@ -184,6 +184,7 @@ public class TestNodeManagerResync {
         } catch (InterruptedException e) {
         } catch (BrokenBarrierException e) {
         } catch (AssertionError ae) {
+          ae.printStackTrace();
           assertionFailedInThread.set(true);
         }
       }
@@ -228,6 +229,7 @@ public class TestNodeManagerResync {
               .setStopThreadFlag(false);
               super.setBlockNewContainerRequests(blockNewContainerRequests);
             } catch (InterruptedException e) {
+              e.printStackTrace();
             }
           }
         }
@@ -258,6 +260,7 @@ public class TestNodeManagerResync {
         } catch (InterruptedException e) {
         } catch (BrokenBarrierException e) {
         } catch (AssertionError ae) {
+          ae.printStackTrace();
           assertionFailedInThread.set(true);
         }
       }
@@ -293,11 +296,10 @@ public class TestNodeManagerResync {
               Assert.assertTrue(e.getMessage().contains(
                 "Rejecting new containers as NodeManager has not" +
                 " yet connected with ResourceManager"));
-              // TO DO: This should be replaced to explicitly check exception
-              // class name after YARN-142
-              Assert.assertTrue(e.getMessage().contains(
-                NMNotYetReadyException.class.getName()));
+              Assert.assertEquals(NMNotYetReadyException.class.getName(), e
+                .getClass().getName());
             } catch (IOException e) {
+              e.printStackTrace();
               assertionFailedInThread.set(true);
             }
           }
