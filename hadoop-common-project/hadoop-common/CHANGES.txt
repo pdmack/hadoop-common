@@ -12,6 +12,9 @@ Release 2.3.0 - UNRELEASED
 
   BUG FIXES
 
+    HADOOP-9582. Non-existent file to "hadoop fs -conf" doesn't throw error
+    (Ashwin Shankar via jlowe)
+
 Release 2.2.0 - UNRELEASED
 
   INCOMPATIBLE CHANGES
@@ -125,6 +128,15 @@ Release 2.1.0-beta - UNRELEASED
 
     HADOOP-9604. Javadoc of FSDataOutputStream is slightly inaccurate. (Jingguo
     Yao via atm)
+    
+    HADOOP-9625. HADOOP_OPTS not picked up by hadoop command.
+    (Paul Han via arpit)
+
+    HADOOP-9649. Promoted YARN service life-cycle libraries into Hadoop Common
+    for usage across all Hadoop projects. (Zhijie Shen via vinodkv)
+
+    HADOOP-9517. Documented various aspects of compatibility for Apache
+    Hadoop. (Karthik Kambatla via acmurthy)
 
   OPTIMIZATIONS
 
@@ -244,7 +256,7 @@ Release 2.1.0-beta - UNRELEASED
     HADOOP-9593. stack trace printed at ERROR for all yarn clients without
     hadoop.home set (stevel)
 
-    HADOOP-8957 AbstractFileSystem#IsValidName should be overridden for
+    HADOOP-8957. AbstractFileSystem#IsValidName should be overridden for
     embedded file systems like ViewFs (Chris Nauroth via Sanjay Radia)
 
     HADOOP-9607. Fixes in Javadoc build (Timothy St. Clair via cos)
@@ -253,6 +265,15 @@ Release 2.1.0-beta - UNRELEASED
 
     HADOOP-9581. hadoop --config non-existent directory should result in error
     (Ashwin Shankar via jlowe)
+
+    HADOOP-9638. Parallel test changes caused invalid test path for several HDFS
+    tests on Windows (Andrey Klochkov via cnauroth)
+
+    HADOOP-9632. TestShellCommandFencer will fail if there is a 'host' machine in
+    the network. (Chuan Liu via cnauroth)
+
+    HADOOP-9624. TestFSMainOperationsLocalFileSystem failed when the Hadoop test
+    root path has "X" in its name. (Xi Fang via cnauroth)
 
   BREAKDOWN OF HADOOP-8562 SUBTASKS AND RELATED JIRAS
 
@@ -443,6 +464,9 @@ Release 2.1.0-beta - UNRELEASED
     HADOOP-9599. hadoop-config.cmd doesn't set JAVA_LIBRARY_PATH correctly.
     (Mostafa Elhemali via ivanmi)
 
+    HADOOP-9637. Adding Native Fstat for Windows as needed by YARN. (Chuan Liu
+    via cnauroth)
+
 Release 2.0.5-alpha - 06/06/2013
 
   INCOMPATIBLE CHANGES
@@ -525,7 +549,9 @@ Release 2.0.3-alpha - 2013-02-06
 
     HADOOP-8812. ExitUtil#terminate should print Exception#toString. (eli)
 
-    HADOOP-3957. Change MutableQuantiles to use a shared thread for rolling
+    HADOOP-8736. Add Builder for building RPC server. (Brandon Li via Suresh)
+
+    HDFS-3957. Change MutableQuantiles to use a shared thread for rolling
     over metrics. (Andrew Wang via todd)
 
     HADOOP-8851. Use -XX:+HeapDumpOnOutOfMemoryError JVM option in the forked
@@ -577,6 +603,9 @@ Release 2.0.3-alpha - 2013-02-06
 
     HADOOP-9015. Standardize creation of SaslRpcServers (daryn via bobby)
 
+    HADOOP-8860. Split MapReduce and YARN sections in documentation navigation.
+    (tomwhite via tucu)
+
     HADOOP-9021. Enforce configured SASL method on the server (daryn via
     bobby)
 
@@ -586,6 +615,9 @@ Release 2.0.3-alpha - 2013-02-06
 
     HADOOP-9093. Move all the Exception in PathExceptions to o.a.h.fs package.
     (suresh)
+
+    HADOOP-9042. Add a test for umask in FileSystemContractBaseTest.
+    (Colin McCabe via eli)
 
     HADOOP-9127. Update documentation for ZooKeeper Failover Controller.
     (Daisuke Kobayashi via atm)
@@ -622,9 +654,6 @@ Release 2.0.3-alpha - 2013-02-06
     HADOOP-9231. Parametrize staging URL for the uniformity of
     distributionManagement. (Konstantin Boudnik via suresh)
 
-    HADOOP-9247. Parametrize Clover "generateXxx" properties to make them
-    re-definable via -D in mvn calls. (Ivan A. Veselovsky via suresh)
-
     HADOOP-9276. Allow BoundedByteArrayOutputStream to be resettable.
     (Arun Murthy via hitesh)
 
@@ -635,9 +664,6 @@ Release 2.0.3-alpha - 2013-02-06
 
     HADOOP-8926. hadoop.util.PureJavaCrc32 cache hit-ratio is low for static
     data (Gopal V via bobby)
-
-    HADOOP-9042. Add a test for umask in FileSystemContractBaseTest.
-    (Colin McCabe via eli)
 
   BUG FIXES
 
@@ -668,7 +694,8 @@ Release 2.0.3-alpha - 2013-02-06
     HADOOP-8756. Fix SEGV when libsnappy is in java.library.path but
     not LD_LIBRARY_PATH. (Colin Patrick McCabe via eli)
 
-    HADOOP-8881. FileBasedKeyStoresFactory initialization logging should be debug not info. (tucu)
+    HADOOP-8881. FileBasedKeyStoresFactory initialization logging should
+    be debug not info. (tucu)
 
     HADOOP-8913. hadoop-metrics2.properties should give units in comment 
     for sampling period. (Sandy Ryza via suresh)
@@ -781,9 +808,6 @@ Release 2.0.3-alpha - 2013-02-06
 
     HADOOP-9289. FsShell rm -f fails for non-matching globs. (Daryn Sharp via
     suresh)
-
-    HADOOP-8958. ViewFs:Non absolute mount name failures when running 
-    multiple tests on Windows. (Chris Nauroth via suresh)
 
 Release 2.0.2-alpha - 2012-09-07 
 
@@ -916,8 +940,6 @@ Release 2.0.2-alpha - 2012-09-07
 
     HADOOP-8819. Incorrectly & is used instead of && in some file system 
     implementations. (Brandon Li via suresh)
-
-    HADOOP-8736. Add Builder for building RPC server. (Brandon Li via Suresh)
 
   BUG FIXES
 
@@ -1487,6 +1509,12 @@ Release 0.23.9 - UNRELEASED
 
   BUG FIXES
 
+    HADOOP-9581. hadoop --config non-existent directory should result in error
+    (Ashwin Shankar via jlowe)
+
+    HADOOP-9582. Non-existent file to "hadoop fs -conf" doesn't throw error
+    (Ashwin Shankar via jlowe)
+
 Release 0.23.8 - 2013-06-05
 
   INCOMPATIBLE CHANGES
@@ -1568,6 +1596,10 @@ Release 0.23.6 - 2013-02-06
   IMPROVEMENTS
     HADOOP-9217. Print thread dumps when hadoop-common tests fail.
     (Andrey Klochkov via suresh)
+
+    HADOOP-9247. Parametrize Clover "generateXxx" properties to make them
+    re-definable via -D in mvn calls. (Ivan A. Veselovsky via suresh)
+
 
   OPTIMIZATIONS
 
