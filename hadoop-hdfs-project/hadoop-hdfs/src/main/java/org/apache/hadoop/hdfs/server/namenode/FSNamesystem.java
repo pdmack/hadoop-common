@@ -179,6 +179,8 @@ import org.apache.hadoop.hdfs.server.namenode.ha.HAState;
 import org.apache.hadoop.hdfs.server.namenode.ha.StandbyCheckpointer;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeMetrics;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable.SnapshotDiffInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithSnapshot;
@@ -1390,11 +1392,18 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
             dir.setTimes(src, inode, -1, now, false, iip.getLatestSnapshot());
           }
         }
-        final long fileSize = iip.getPathSnapshot() != null?
+        final long fileSize = iip.isSnapshot() ?
             inode.computeFileSize(iip.getPathSnapshot())
             : inode.computeFileSizeNotIncludingLastUcBlock();
+        boolean isUc = inode.isUnderConstruction();
+        if (iip.isSnapshot()) {
+          // if src indicates a snapshot file, we need to make sure the returned
+          // blocks do not exceed the size of the snapshot file.
+          length = Math.min(length, fileSize - offset);
+          isUc = false;
+        }
         return blockManager.createLocatedBlocks(inode.getBlocks(), fileSize,
-            inode.isUnderConstruction(), offset, length, needBlockToken);
+            isUc, offset, length, needBlockToken, iip.isSnapshot());
       } finally {
         if (isReadOp) {
           readUnlock();
@@ -2907,7 +2916,12 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     getEditLog().logSync(); 
     removeBlocks(collectedBlocks); // Incremental deletion of blocks
     collectedBlocks.clear();
-    dir.removeFromInodeMap(removedINodes);
+    dir.writeLock();
+    try {
+      dir.removeFromInodeMap(removedINodes);
+    } finally {
+      dir.writeUnlock();
+    }
     removedINodes.clear();
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* Namesystem.delete: "
