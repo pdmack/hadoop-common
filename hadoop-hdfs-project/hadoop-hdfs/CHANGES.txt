@@ -28,6 +28,8 @@ Release 2.1.0-beta - UNRELEASED
 
   INCOMPATIBLE CHANGES
 
+    HDFS-4053. Increase the default block size. (eli)
+
     HDFS-4305. Add a configurable limit on number of blocks per file, and min
     block size. (Andrew Wang via atm)
 
@@ -35,6 +37,9 @@ Release 2.1.0-beta - UNRELEASED
 
     HDFS-2802. Add HDFS Snapshot feature.  (See breakdown of tasks below for
     subtasks and contributors)
+
+    HDFS-4866. Protocol buffer support cannot compile under C. (Arpit Agarwal via
+    cnauroth)
 
   NEW FEATURES
 
@@ -70,7 +75,12 @@ Release 2.1.0-beta - UNRELEASED
     HDFS-3495. Update Balancer to support new NetworkTopology with NodeGroup.
     (Junping Du via szetszwo)
 
+    HDFS-4659 Support setting execution bit for regular files (Brandon Li via sanjay)
+
   IMPROVEMENTS
+
+    HDFS-4461. DirectoryScanner: volume path prefix takes up memory for every
+    block that is scanned (Colin Patrick McCabe)
 
     HDFS-4222. NN is unresponsive and loses heartbeats from DNs when 
     configured to use LDAP and LDAP has issues. (Xiaobo Peng, suresh)
@@ -152,14 +162,31 @@ Release 2.1.0-beta - UNRELEASED
     HDFS-4698. Provide client-side metrics for remote reads, local reads, and
     short-circuit reads. (Colin Patrick McCabe via atm)
 
+    HDFS-3498. Support replica removal in BlockPlacementPolicy and make
+    BlockPlacementPolicyDefault extensible for reusing code in subclasses.
+    (Junping Du via szetszwo)
+
     HDFS-4234. Use generic code for choosing datanode in Balancer.  (szetszwo)
 
     HDFS-4880. Print the image and edits file loaded by the namenode in the
     logs. (Arpit Agarwal via suresh)
 
+    HDFS-2572. Remove unnecessary double-check in DN#getHostName. (harsh)
+
+    HDFS-2857. Cleanup BlockInfo class. (suresh)
+
+    HDFS-3009. Remove duplicate code in DFSClient#isLocalAddress by using 
+    NetUtils. (Hari Mankude via suresh)
+
   OPTIMIZATIONS
 
   BUG FIXES
+
+    HDFS-4626. ClientProtocol#getLinkTarget should throw an exception for
+    non-symlink and non-existent paths.  (Andrew Wang via cmccabe)
+
+    HDFS-3934. duplicative dfs_hosts entries handled wrong. (Colin Patrick
+    McCabe)
     
     HDFS-4470. Several HDFS tests attempt file operations on invalid HDFS
     paths when running on Windows. (Chris Nauroth via suresh)
@@ -354,8 +381,24 @@ Release 2.1.0-beta - UNRELEASED
     HDFS-4586. TestDataDirs.testGetDataDirsFromURIs fails with all directories
     in dfs.datanode.data.dir are invalid. (Ivan Mitic via atm)
 
-    HDFS-4878. On Remove Block, block is not removed from neededReplications
-    queue. (Tao Luo via shv)
+    HDFS-3792. Fix two findbugs introduced by HDFS-3695 (todd)
+
+    HADOOP-9635 Fix potential Stack Overflow in DomainSocket.c (V. Karthik Kumar
+                via cmccabe)
+
+    HDFS-3163. TestHDFSCLI.testAll fails if the user name is not all lowercase.
+    (Brandon Li via atm)
+
+    HDFS-4845. FSNamesystem.deleteInternal should acquire write-lock before
+    changing the inode map.  (Arpit Agarwal via szetszwo)
+
+    HDFS-4910. TestPermission failed in branch-2. (Chuan Liu via cnauroth)
+
+    HDFS-4906. HDFS Output streams should not accept writes after being
+    closed. (atm)
+
+    HDFS-4917. Start-dfs.sh cannot pass the parameters correctly.
+    (Fengdong Yu via suresh)
 
   BREAKDOWN OF HDFS-347 SUBTASKS AND RELATED JIRAS
 
@@ -488,6 +531,12 @@ Release 2.1.0-beta - UNRELEASED
 
     HDFS-4752. TestRBWBlockInvalidation fails on Windows due to file locking.
     (Chris Nauroth via suresh)
+
+    HDFS-4783. TestDelegationTokensWithHA#testHAUtilClonesDelegationTokens fails
+    on Windows. (cnauroth)
+
+    HDFS-4818. Several HDFS tests that attempt to make directories unusable do
+    not work correctly on Windows. (cnauroth)
 
   BREAKDOWN OF HDFS-2802 HDFS SNAPSHOT SUBTASKS AND RELATED JIRAS
 
@@ -855,6 +904,18 @@ Release 2.1.0-beta - UNRELEASED
     HDFS-4877. Snapshot: fix the scenario where a directory is renamed under 
     its prior descendant. (jing9)
 
+    HDFS-4873. callGetBlockLocations returns incorrect number of blocks for 
+    snapshotted files. (jing9)
+
+    HDFS-4819. Update Snapshot doc to clarify that nested snapshots are not
+    allowed.  (szetszwo)
+
+    HDFS-4902. DFSClient.getSnapshotDiffReport should use string path rather 
+    than o.a.h.fs.Path. (Binglin Chang via jing9) 
+
+    HDFS-4875. Add a test for testing snapshot file length. 
+    (Arpit Agarwal via jing9)
+
 Release 2.0.5-alpha - 06/06/2013
 
   INCOMPATIBLE CHANGES
@@ -1100,13 +1161,7 @@ Release 2.0.3-alpha - 2013-02-06
 
     HDFS-4456. Add concat to HttpFS and WebHDFS REST API docs. (plamenj2003 via tucu)
 
-    HDFS-4053. Increase the default block size. (eli)
-
     HDFS-3131. Improve TestStorageRestore. (Brandon Li via atm)
-
-    HDFS-3498. Support replica removal in BlockPlacementPolicy and make
-    BlockPlacementPolicyDefault extensible for reusing code in subclasses.
-    (Junping Du via szetszwo)
 
   OPTIMIZATIONS
 
@@ -2951,6 +3006,9 @@ Release 0.23.9 - UNRELEASED
     HDFS-4832. Namenode doesn't change the number of missing blocks in
     safemode when DNs rejoin or leave (Ravi Prakash via kihwal)
 
+    HDFS-4878. On Remove Block, block is not removed from neededReplications
+    queue. (Tao Luo via shv)
+
 Release 0.23.8 - 2013-06-05
 
   INCOMPATIBLE CHANGES
@@ -4211,6 +4269,7 @@ Release 0.23.0 - 2011-11-01
 
     HDFS-1620. Rename HdfsConstants -> HdfsServerConstants, FSConstants ->
                HdfsConstants. (Harsh J Chouraria via atm)
+
     HDFS-2197. Refactor RPC call implementations out of NameNode class (todd)
 
     HDFS-2332. Add test for HADOOP-7629 (using an immutable FsPermission
